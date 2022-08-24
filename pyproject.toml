@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "labmachine"
+version = "0.1.0"
+description = "A simple creator of machines with Jupyterlab"
+authors = ["nuxion <nuxion@gmail.com>"]
+license = "Apache-2.0"
+packages = [
+   { include = "labmachine"},
+]
+readme = "README.md"
+homepage = "https://github.com/nuxion/labmachine"
+repository = "https://github.com/nuxion/labmachine"
+keywords = ["jupyter", "cloud"]
+include = ["LICENSE"]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.11"
+apache-libcloud = "^3.6.0"
+pydantic = "^1.9.2"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
