@@ -17,8 +17,11 @@ include = ["LICENSE"]
 python = ">=3.8,<3.11"
 apache-libcloud = "^3.6.0"
 pydantic = "^1.9.2"
+nanoid = "^2.0.0"
+cryptography = "^37.0.4"
 
 [tool.poetry.dev-dependencies]
+ipython = "^8.4.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

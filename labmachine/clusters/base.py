@@ -1,0 +1,44 @@
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional, Union
+
+from .types import (
+    BlockInstance,
+    BlockStorage,
+    MachineInstance,
+    MachineRequest,
+    StorageRequest
+)
+
+
+class ProviderSpec(ABC):
+    """Interface definition of a cloud provider"""
+
+    @abstractmethod
+    def create_machine(self, node: MachineRequest) -> MachineInstance:
+        pass
+
+    @abstractmethod
+    def destroy_machine(self, node: Union[str, MachineInstance]):
+        pass
+
+    @abstractmethod
+    def list_machines(
+        self, location: Optional[str] = None, tags: Optional[List[str]] = None
+    ) -> List[MachineInstance]:
+        pass
+
+    @abstractmethod
+    def create_volume(self, disk: StorageRequest) -> BlockInstance:
+        pass
+
+    @abstractmethod
+    def destroy_volume(self, disk: Union[str, BlockStorage]) -> bool:
+        pass
+
+    @abstractmethod
+    def attach_volume(self, node: MachineInstance, disk: BlockStorage) -> bool:
+        pass
+
+    @abstractmethod
+    def detach_volume(self, node: MachineInstance, disk: BlockStorage) -> bool:
+        pass
