@@ -31,8 +31,8 @@ then
     apt-get install -y jq
 fi
 
-LAB_DOMAIN=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/?recursive=true" -H "Metadata-Flavor: Google" | jq .labdomain | tr -d '"'`
-NAME=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/name" -H "Metadata-Flavor: Google"`
+LAB_URL=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/?recursive=true" -H "Metadata-Flavor: Google" | jq .laburl | tr -d '"'`
+# NAME=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/name" -H "Metadata-Flavor: Google"`
 IMAGE=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/?recursive=true" -H "Metadata-Flavor: Google" | jq .labimage | tr -d '"'`
 TOKEN=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/?recursive=true" -H "Metadata-Flavor: Google" | jq .labtoken | tr -d '"'`
 USERID=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/?recursive=true" -H "Metadata-Flavor: Google" | jq .labuid | tr -d '"'`
@@ -96,7 +96,7 @@ docker run --rm \
     ${IMAGE} jupyter lab --ip=0.0.0.0 --port=8888 --notebook-dir=${WORKAREA} --ServerApp.token=${TOKEN} --ServerApp.shutdown_no_activity_timeout=${LAB_TS} > /tmp/jupyter.log 2>&1 &
 
 cat <<EOT > /etc/Caddyfile
-${NAME}.${LAB_DOMAIN} {
+${LAB_URL} {
 	reverse_proxy ${DOCKER_LISTEN}
 }
 EOT
@@ -112,4 +112,5 @@ do
     sleep $CHECK_EVERY
 done
 
-echo "Shutdown -h now"
+echo "Shuting down"
+shutdown -h now

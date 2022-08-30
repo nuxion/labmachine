@@ -12,6 +12,25 @@ from labmachine.types import (AttachStorage, BlockStorage, BootDiskRequest,
                               VMInstance, VMRequest)
 
 
+class JupyterState(BaseModel):
+    project: str
+    provider: str
+    location: str
+    zone: DNSZone
+    volumes: List[BlockStorage] = []
+    vm: Optional[VMInstance] = None
+    url: Optional[str] = None
+    record: Optional[DNSRecord] = None
+    volumes: List[BlockStorage] = []
+
+
+class LabResponse(BaseModel):
+    project: str
+    token: str
+    url: str
+
+
+
 def find_gce(prov: ProviderSpec, ram: int, cpu: str, gpu="") \
         -> List[InstanceType]:
     sizes = prov.driver.list_sizes(location=prov._location)
@@ -45,22 +64,6 @@ def find_node_types(prov: ProviderSpec, ram=2, cpu=2, gpu="") \
         nodes = find_gce(prov, ram, cpu, gpu)
     return nodes
 
-
-class JupyterState(BaseModel):
-    project: str
-    provider: str
-    location: str
-    zone: DNSZone
-    volumes: List[BlockStorage] = []
-    vm: Optional[VMInstance] = None
-    record: Optional[DNSRecord] = None
-    volumes: List[BlockStorage] = []
-
-
-class LabResponse(BaseModel):
-    project: str
-    token: str
-    url: str
 
 
 class JupyterController:
@@ -171,7 +174,10 @@ class JupyterController:
         _name = utils.generate_random(
             size=5, alphabet=defaults.NANO_MACHINE_ALPHABET)
 
+        vm_name = f"lab-{_name}"
         zone = self._state.zone
+        url = f"{vm_name}.{self.prj}.{zone.domain}"
+        self._state.url = url
         to_attach = []
         if volume_data:
             to_attach = [
@@ -182,7 +188,7 @@ class JupyterController:
             ]
 
         vm = VMRequest(
-            name=f"lab-{_name}",
+            name=vm_name,
             instance_type=node_type,
             startup_script=self._get_startup_script(),
             location=self.location,
@@ -194,7 +200,8 @@ class JupyterController:
                 auto_delete=boot_delete,
             ),
             metadata={
-                "labdomain": zone.domain.strip("."),
+                "labdomain": f"{self.prj}.{zone.domain}".strip("."),
+                "laburl": url.strip("."),
                 "labimage": container,
                 "labtoken": token,
                 "labvol": volume_data,
@@ -210,7 +217,6 @@ class JupyterController:
         instance = self.prov.create_vm(vm)
         self._state.vm = instance
 
-        url = f"{instance.vm_name}.{self.prj}.{zone.domain}"
         record = DNSRecord(
             name=url,
             zoneid=self.zone.id,
@@ -234,6 +240,7 @@ class JupyterController:
         _record = f"{self._state.record.record_type}:{self._state.record.name}"
         self.dns.delete_record(self._state.zone.id, _record)
         self._state.record = None
+        self._state.url = None
 
     def save(self, path):
         with open(path, "w") as f:
