@@ -482,3 +482,6 @@ project_test/*
 flycheck_*.py
 db.sqlite
 .ssh/
+state.json
+packer_cache/
+*.pkrvars.hcl
