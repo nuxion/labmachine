@@ -1,9 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union
 
-from .types import (AttachStorage, BlockStorage, StorageRequest, VMInstance,
-                    DNSRecord, DNSZone,
-                    VMRequest)
+from .types import (AttachStorage, BlockStorage, DNSRecord, DNSZone,
+                    StorageRequest, VMInstance, VMRequest)
 
 
 class ProviderSpec(ABC):
@@ -64,6 +63,15 @@ class DNSSpec(ABC):
         pass
 
     def create_zone(self, zone: DNSZone):
+        pass
+
+    def list_zones(self) -> List[DNSZone]:
+        pass
+
+    def get_record(self, zoneid: str, recordid: str) -> DNSRecord:
+        pass
+
+    def list_records(self, zoneid: str) -> List[DNSRecord]:
         pass
 
     def create_record(self, record: DNSRecord) -> Dict[str, Any]:

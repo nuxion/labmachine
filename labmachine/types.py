@@ -10,28 +10,21 @@ DOCKER_GID = "997"
 AGENT_DOCKER_IMG = "nuxion/labfunctions"
 
 
-class DNSTypeA(BaseModel):
-    address:xxxx:qx aaaaxCCunion[List[str], str]
-
-
-class DNSTypeCNAME(BaseModel):
-    pass
-
-
-class DNSTypeMX(BaseModel):
-    pass
-
-
-class DNSTypeAAAA(BaseModel):
-    pass
+class InstanceType(BaseModel):
+    name: str
+    cpu: int
+    ram: int
+    gpu: Optional[str] = None
+    desc: Optional[str] = None
+    price: Optional[float] = None
 
 
 class DNSRecord(BaseModel):
     name: str
     zoneid: str
     record_type: str
+    data: List[str]
     ttl: int = 14400  # 4 hours for an update
-    data: Union[DNSTypeA, DNSTypeAAAA, DNSTypeCNAME, DNSTypeMX]
     extra: Optional[ExtraField] = None
 
 
@@ -39,6 +32,7 @@ class DNSZone(BaseModel):
     domain: str
     zone_type: str = "master"
     ttl: Optional[int] = None
+    id: Optional[str] = None
     extra: Optional[ExtraField] = None
 
 
@@ -84,12 +78,8 @@ class StorageRequest(BaseModel):
     name: str
     size: Union[int, str]
     location: str
-    mount: str = "/"
-    create_if_not_exist: bool = False
     snapshot: Optional[str] = None
-    image: Optional[str] = None
     labels: Dict[str, Any] = {"mount": "/"}
-    permissions: Optional[List[str]] = None
     description: Optional[str] = None
     storage_type: Optional[str] = None
     extra: Optional[ExtraField] = None

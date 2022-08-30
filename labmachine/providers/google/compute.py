@@ -6,40 +6,15 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from labmachine import defaults
-from labmachine.clusters.base import ProviderSpec
-from labmachine.clusters.types import (AttachStorage, BlockStorage,
-                                       StorageRequest, VMInstance, VMRequest)
+from labmachine.base import ProviderSpec
+from labmachine.types import (AttachStorage, BlockStorage, StorageRequest,
+                              VMInstance, VMRequest)
 from labmachine.utils import generate_random
 from libcloud.compute.base import Node, NodeLocation
 from libcloud.compute.providers import get_driver
 from libcloud.compute.types import Provider
-from pydantic import BaseSettings
 
-
-class GCConf(BaseSettings):
-    CREDENTIALS: str
-    PROJECT: str
-    LOCATION: Optional[str] = None
-    SERVICE_ACCOUNT: Optional[str] = None
-
-    class Config:
-        env_prefix = "GCE_"
-
-
-def get_auth_conf() -> GCConf:
-    creds_env = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-    if creds_env:
-        with open(creds_env, "r") as f:
-            data = json.loads(f.read())
-            acc = data["client_email"]
-            prj = data["project_id"]
-        conf = GCConf(CREDENTIALS=creds_env,
-                      PROJECT=prj,
-                      SERVICE_ACCOUNT=acc)
-    else:
-        conf = GCConf()
-    return conf
+from .common import get_auth_conf
 
 
 def generic_zone(name, driver) -> NodeLocation:
@@ -107,17 +82,34 @@ class GCEProvider(ProviderSpec):
         )
         return vm
 
+    def _transform_meta(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """ It getts a dict of key and values from the VMRequest
+        and converts it to a valid format for google
+        """
+        items = []
+        for k, v in data.items():
+            items.append(
+                {"key": k, "value": v}
+            )
+        return items
+
     def create_vm(self, vm: VMRequest) -> VMInstance:
-        metadata = vm.metadata
+        items = self._transform_meta(vm.metadata)
+        meta = None
         if vm.ssh_user and vm.ssh_public_cert:
             keys = {
                 "key": "ssh-keys",
                 "value": f"{vm.ssh_user}: {vm.ssh_public_cert}"
             }
-            if metadata.get("items"):
-                metadata["items"].append(keys)
-            else:
-                metadata.update({"items": [keys]})
+            items.append(keys)
+        if vm.startup_script:
+            items.append({
+                "key": "startup-script",
+                "value": vm.startup_script
+            })
+
+        if items:
+            meta = {"items": items}
 
         maintence_policy = None
         accelerator_type = None
@@ -141,7 +133,7 @@ class GCEProvider(ProviderSpec):
             external_ip=vm.external_ip,
             internal_ip=vm.internal_ip,
             # meta
-            ex_metadata=metadata,
+            ex_metadata=meta,
             ex_tags=vm.tags,
             ex_labels=vm.labels,
             # gpu
@@ -234,12 +226,11 @@ class GCEProvider(ProviderSpec):
             disk.size,
             disk.name,
             location=disk.location,
-            image=disk.image,
             snapshot=disk.snapshot,
             ex_disk_type=disk.storage_type,
         )
-        block = BlockStorage(id=vol.id, **disk.dict())
-        block.extra = vol.extra
+        block = BlockStorage(id=vol.id, status=vol.extra["status"] ,**disk.dict())
+        # block.extra = vol.extra
         return block
 
     def destroy_volume(self, disk: str, location: Optional[str] = None) \

@@ -1,3 +1,4 @@
+from nanoid import generate
 from labmachine.defaults import NANO_ID_ALPHABET
 
 
