@@ -485,3 +485,4 @@ db.sqlite
 state.json
 packer_cache/
 *.pkrvars.hcl
+scripts/gce.machines.txt

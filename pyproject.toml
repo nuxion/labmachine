@@ -19,6 +19,7 @@ apache-libcloud = "^3.6.0"
 pydantic = "^1.9.2"
 nanoid = "^2.0.0"
 cryptography = "^37.0.4"
+rich = "^12.5.1"
 
 [tool.poetry.dev-dependencies]
 ipython = "^8.4.0"
