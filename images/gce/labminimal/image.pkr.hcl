@@ -7,7 +7,7 @@ packer {
   }
 }
 
-source "googlecompute" "labagent" {
+source "googlecompute" "labminimal-cpu" {
   project_id        = var.project_id
   source_image      = "debian-11-bullseye-v20220406"
   ssh_username      = "op"
@@ -21,7 +21,7 @@ source "googlecompute" "labagent" {
 }
 
 build {
-  sources = ["sources.googlecompute.labagent"]
+  sources = ["sources.googlecompute.labminimal-cpu"]
   # provisioner "file" {
   #   source = "../scripts/docker_mirror.py"
   #   destination = "/tmp/docker_mirror.py"
