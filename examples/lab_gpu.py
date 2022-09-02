@@ -28,7 +28,7 @@ rsp = jup.create_lab(
     volume_data="testing-data",
     gpu="nvidia-tesla-t4",
     boot_image="lab-minimal-010-gpu",
-    boot_size="10",
+    boot_size="20",
 )
 console.print("=> Congrats! Lab created")
 console.print("Go to: ")
