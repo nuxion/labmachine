@@ -8,8 +8,8 @@ from pydantic import BaseModel
 from labmachine import defaults, utils
 from labmachine.base import DNSSpec, ProviderSpec
 from labmachine.types import (AttachStorage, BlockStorage, BootDiskRequest,
-                              DNSRecord, DNSZone, InstanceType, StorageRequest,
-                              VMInstance, VMRequest)
+                              DNSRecord, DNSZone, GPURequest, InstanceType,
+                              StorageRequest, VMInstance, VMRequest)
 
 
 class JupyterState(BaseModel):
@@ -28,7 +28,6 @@ class LabResponse(BaseModel):
     project: str
     token: str
     url: str
-
 
 
 def find_gce(prov: ProviderSpec, ram: int, cpu: str, gpu="") \
@@ -65,7 +64,6 @@ def find_node_types(prov: ProviderSpec, ram=2, cpu=2, gpu="") \
     return nodes
 
 
-
 class JupyterController:
 
     def __init__(self, compute: ProviderSpec,
@@ -94,7 +92,7 @@ class JupyterController:
             compute=compute,
             dns=dns,
             project=s.project,
-            zoneid=s.zone.id,
+            zoneid=str(s.zone.id),
             location=s.location,
             state=s
         )
@@ -116,9 +114,12 @@ class JupyterController:
             nodes = find_gce(self.prov, ram, cpu, gpu)
         return nodes
 
-    def _get_startup_script(self):
+    def _get_startup_script(self, gpu=False):
         here = os.path.abspath(os.path.dirname(__file__))
-        with open(f"{here}/files/{self.prov.providerid}_startup.sh", "r") as f:
+        _file = f"{self.prov.providerid}_startup.sh"
+        if gpu:
+            _file = f"{self.prov.providerid}_startup_gpu.sh"
+        with open(f"{here}/files/{_file}", "r") as f:
             startup = f.read()
         return startup
 
@@ -156,6 +157,7 @@ class JupyterController:
                    boot_delete=True,
                    ram=1,
                    cpu=1,
+                   gpu=None,
                    domainid="",
                    network="default",
                    tags=["http-server", "https-server"],
@@ -186,6 +188,11 @@ class JupyterController:
                     mode="READ_WRITE",
                 )
             ]
+        _gpu = None
+        if gpu:
+            _gpu = GPURequest(name="gpu",
+                              gpu_type=gpu,
+                              count=1)
 
         vm = VMRequest(
             name=vm_name,
@@ -208,6 +215,7 @@ class JupyterController:
                 "labuid": uuid,
                 "labtimeout": lab_timeout,
             },
+            gpu=_gpu,
             attached_disks=to_attach,
             tags=tags,
             network=network,
