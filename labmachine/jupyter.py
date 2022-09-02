@@ -114,7 +114,7 @@ class JupyterController:
             nodes = find_gce(self.prov, ram, cpu, gpu)
         return nodes
 
-    def _get_startup_script(self, gpu=False):
+    def _get_startup_script(self, gpu=None):
         here = os.path.abspath(os.path.dirname(__file__))
         _file = f"{self.prov.providerid}_startup.sh"
         if gpu:
@@ -197,7 +197,7 @@ class JupyterController:
         vm = VMRequest(
             name=vm_name,
             instance_type=node_type,
-            startup_script=self._get_startup_script(),
+            startup_script=self._get_startup_script(gpu),
             location=self.location,
             provider=self.prov.providerid,
             boot=BootDiskRequest(
