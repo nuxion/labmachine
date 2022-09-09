@@ -1,33 +1,74 @@
 import json
 import os
 import secrets
-from typing import List, Optional
+from pathlib import Path
+from typing import List, Optional, Set
+from urllib.parse import urlparse
 
 from pydantic import BaseModel
 
 from labmachine import defaults, utils
 from labmachine.base import DNSSpec, ProviderSpec
+from labmachine.io.kvspec import GenericKVSpec
 from labmachine.types import (AttachStorage, BlockStorage, BootDiskRequest,
                               DNSRecord, DNSZone, GPURequest, InstanceType,
                               StorageRequest, VMInstance, VMRequest)
 
+VM_PROVIDERS = {"gce": "labmachine.providers.google.compute.GCEProvider"}
+DNS_PROVIDERS = {"gce": "labmachine.providers.google.dns.GoogleDNS"}
+
 
 class JupyterState(BaseModel):
     project: str
-    provider: str
+    compute_provider: str
+    dns_provider: str
     location: str
-    zone: DNSZone
+    zone_id: str
     volumes: List[BlockStorage] = []
     vm: Optional[VMInstance] = None
     url: Optional[str] = None
     record: Optional[DNSRecord] = None
-    volumes: List[BlockStorage] = []
+    volumes: Set[BlockStorage] = []
+    self_link: str = None
 
 
 class LabResponse(BaseModel):
     project: str
     token: str
     url: str
+
+
+def fetch_state(path) -> JupyterState:
+    if path.startswith("gs://"):
+        GS: GenericKVSpec = utils.get_class("labmachine.io.kv_gcs.KVGS")
+        _parsed = urlparse(path)
+        gs = GS(_parsed.netloc)
+        data = gs.get(f"{_parsed.path[1:]}")
+        data = data.decode("utf-8")
+    else:
+        with open(path, "r") as f:
+            data = f.read()
+
+    s = JupyterState(**json.loads(data))
+    return s
+
+
+def push_state(state: JupyterState) -> str:
+    if state.self_link.startswith("gs://"):
+        GS: GenericKVSpec = utils.get_class(
+            "labmachine.io.kv_gcs.KVGS")
+        _parsed = urlparse(state.self_link)
+        gs = GS(_parsed.netloc)
+        _d = json.dumps(state.dict())
+        _fp = f"{_parsed.path[1:]}"
+        gs.put(_fp, _d.encode())
+        fp = state.self_link
+    else:
+        _fp = Path(state.self_link).resolve()
+        with open(_fp, "w") as f:
+            f.write(json.dumps(state.dict()))
+        fp = str(_fp)
+    return fp
 
 
 def find_gce(prov: ProviderSpec, ram: int, cpu: str, gpu="") \
@@ -68,38 +109,28 @@ class JupyterController:
 
     def __init__(self, compute: ProviderSpec,
                  dns: DNSSpec,
-                 project: str,
-                 zoneid: str,
-                 location="us-central1-c",
-                 state: Optional[JupyterState] = None
+                 state: JupyterState
                  ):
         self.prov = compute
         self.dns = dns
-        zone = self.dns.get_zone(zoneid)
-        self._state: JupyterState = state or JupyterState(
-            location=location,
-            project=project,
-            provider=compute.providerid,
-            zone=zone
-        )
+        self._zone = self.dns.get_zone(state.zone_id)
+        self._state: JupyterState = state
 
     @classmethod
-    def from_state(cls, path, *, compute: ProviderSpec, dns: DNSSpec) -> "JupyterController":
-        with open(path, "r") as f:
-            d = f.read()
-        s = JupyterState(**json.loads(d))
+    def from_state(cls, path: str) -> "JupyterController":
+        s = fetch_state(path)
+        compute: ProviderSpec = utils.get_class(
+            VM_PROVIDERS[s.compute_provider])()
+        dns: DNSSpec = utils.get_class(DNS_PROVIDERS[s.dns_provider])()
         return cls(
             compute=compute,
             dns=dns,
-            project=s.project,
-            zoneid=str(s.zone.id),
-            location=s.location,
             state=s
         )
 
     @property
     def zone(self) -> DNSZone:
-        return self._state.zone
+        return self._zone
 
     @property
     def location(self) -> str:
@@ -126,7 +157,7 @@ class JupyterController:
     def check_volume(self, name) -> bool:
         try:
             vol = self.prov.get_volume(name)
-            self._state.volumes.append(vol)
+            self._state.volumes.add(vol)
             return True
         except Exception:
             return False
@@ -146,7 +177,7 @@ class JupyterController:
             storage_type=storage_type,
         )
         st = self.prov.create_volume(sr)
-        self._state.volumes.append(st)
+        self._state.volumes.add(st)
 
     def create_lab(self,
                    container="jupyter/minimal-notebook:python-3.10.6",
@@ -163,7 +194,7 @@ class JupyterController:
                    tags=["http-server", "https-server"],
                    instance_type=None,
                    volume_data=None,
-                   lab_timeout=20 * 60, # in seconds
+                   lab_timeout=20 * 60,  # in seconds
                    debug=False
                    ):
         if ram and cpu and not instance_type:
@@ -178,7 +209,7 @@ class JupyterController:
             size=5, alphabet=defaults.NANO_MACHINE_ALPHABET)
 
         vm_name = f"lab-{_name}"
-        zone = self._state.zone
+        zone = self.zone
         url = f"{vm_name}.{self.prj}.{zone.domain}"
         self._state.url = url
         to_attach = []
@@ -249,10 +280,25 @@ class JupyterController:
                              location=self._state.vm.location)
         self._state.vm = None
         _record = f"{self._state.record.record_type}:{self._state.record.name}"
-        self.dns.delete_record(self._state.zone.id, _record)
+        self.dns.delete_record(self.zone.id, _record)
         self._state.record = None
         self._state.url = None
 
-    def save(self, path):
-        with open(path, "w") as f:
-            f.write(json.dumps(self._state.dict()))
+    def save(self) -> str:
+        """ Returns the final path where the file is written """
+        push_state()
+        if self._state.self_link.startswith("gs://"):
+
+            GS: GenericKVSpec = utils.get_class(
+                "labmachine.io.kv_gcs.KVGS")
+            gs = GS(bucket)
+            _d = json.dumps(self._state.dict())
+            _fp = f"{self.prj}/{self.location}/{path}"
+            gs.put(_fp, _d.encode())
+            fp = f"gs://{bucket}/{_fp}"
+        else:
+            _fp = Path("path").resolve()
+            with open(_fp, "w") as f:
+                f.write(json.dumps(self._state.dict()))
+            fp = str(_fp)
+        return fp

@@ -58,6 +58,7 @@ class ProviderSpec(ABC):
 
 
 class DNSSpec(ABC):
+    providerid: str
 
     def get_zone(self, zoneid: str):
         pass

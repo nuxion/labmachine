@@ -12,7 +12,7 @@ from .common import get_auth_conf
 
 
 class GoogleDNS(DNSSpec):
-    providerid = "gce-dns"
+    providerid = "gce"
 
     def __init__(self):
         conf = get_auth_conf()

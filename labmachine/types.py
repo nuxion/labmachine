@@ -1,3 +1,4 @@
+from binascii import crc32
 from typing import Any, Dict, List, NewType, Optional, Set, Tuple, Union
 
 from pydantic import BaseModel, BaseSettings
@@ -48,6 +49,9 @@ class BlockStorage(BaseModel):
     storage_type: Optional[str] = None
     labels: Dict[str, Any] = {}
     extra: Optional[ExtraField] = None
+
+    def __hash__(self):
+        return crc32(self.id.encode())
 
 
 class AttachStorage(BaseModel):
