@@ -1,5 +1,9 @@
 #!/bin/bash
-
+set -o nounset
+# set -o errexit
+# set -x
+export DEBIAN_FRONTEND=noninteractive
+DOCKER_CMD="docker run"
 DOCKER_LISTEN=127.0.0.1:8888
 DEVICE=/dev/disk/by-id/google
 DEFAULT_VOL=/opt/volumes/labdata
@@ -7,12 +11,16 @@ NOTEBOOKS_DIR=${DEFAULT_VOL}/notebooks
 DATA_DIR=${DEFAULT_VOL}/data
 WORKAREA=/workarea
 CHECK_EVERY=30
+LOG_FILE=/var/log/jupyter_startup.log
+exec 3>&1 1>>${LOG_FILE} 2>&1
+
+_log() {
+   echo "$(date): $@" | tee /dev/fd/3
+}
 
 command_exists() {
 	command -v "$@" > /dev/null 2>&1
 }
-
-
 
 if ! command_exists "cscli" &> /dev/null
 then
@@ -24,6 +32,7 @@ then
 fi
 if ! command_exists "docker" &> /dev/null
 then
+    _log "Installing docker"
     cscli -i docker
 fi
 if ! command_exists "jq" &> /dev/null
@@ -31,14 +40,17 @@ then
     apt-get install -y jq
 fi
 
-LAB_URL=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/?recursive=true" -H "Metadata-Flavor: Google" | jq .laburl | tr -d '"'`
+META=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/?recursive=true" -H "Metadata-Flavor: Google"`
+LAB_URL=`echo $META | jq .laburl | tr -d '"'`
 # NAME=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/name" -H "Metadata-Flavor: Google"`
-IMAGE=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/?recursive=true" -H "Metadata-Flavor: Google" | jq .labimage | tr -d '"'`
-TOKEN=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/?recursive=true" -H "Metadata-Flavor: Google" | jq .labtoken | tr -d '"'`
-USERID=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/?recursive=true" -H "Metadata-Flavor: Google" | jq .labuid | tr -d '"'`
+IMAGE=`echo $META | jq .labimage | tr -d '"'`
+TOKEN=`echo $META | jq .labtoken | tr -d '"'`
+USERID=`echo $META | jq .labuid | tr -d '"'`
 # DOCKER_USER=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/?recursive=true" -H "Metadata-Flavor: Google" | jq .dockeruser | tr -d '"'`
-LAB_VOL=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/?recursive=true" -H "Metadata-Flavor: Google" | jq .labvol | tr -d '"'`
-LAB_TS=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/?recursive=true" -H "Metadata-Flavor: Google" | jq .labtimeout | tr -d '"'` # in minutes
+LAB_VOL=`echo $META | jq .labvol | tr -d '"'`
+LAB_TS=`echo $META | jq .labtimeout | tr -d '"'` # in minutes
+GPU=`echo $META | jq .gpu | tr -d '"'`
+DEBUG=`echo $META | jq .debug | tr -d '"'`
 
 check_disk_formated() {
     lsblk -f ${DEVICE}-${1} | grep ext4
@@ -51,31 +63,34 @@ format_disk() {
 check_folders() {
     if [ ! -d ${DATA_DIR} ]
     then
+        _log "creating DATA_DIR ${DATA_DIR}"
         mkdir ${DATA_DIR}
+        chown ${USERID} ${DATA_DIR}
+        chmod 750 ${DATA_DIR}
     fi
 
-    chown ${USERID} ${DATA_DIR}
-    chmod 750 ${DATA_DIR}
     if [ ! -d ${NOTEBOOKS_DIR} ]
     then
-        mkdir ${NOTEBOOKS_DIR}
+        _log "creating NOTEBOOKS_DIR ${NOTEBOOKS_DIR}"
+       mkdir ${NOTEBOOKS_DIR}
+       chown ${USERID} ${NOTEBOOKS_DIR}
+       chmod 750 ${NOTEBOOKS_DIR}
     fi
-    chown ${USERID} ${NOTEBOOKS_DIR}
-    chmod 750 ${NOTEBOOKS_DIR}
-
 }
 
 check_pull(){
     docker images | grep $1
     status=$?
-    if [ "${status}" -gt 0 ];
+    if [ "${status}" -lt 1 ];
     then
-	docker pull ${1}
+        _log "Pulling docker image ${1}"
+	docker pull ${1} | tee /dev/fd/3
     fi
 }
 
 if [ "${LAB_VOL}" != "null" ];
 then
+   _log "Configuring LAB_VOL (${LAB_VOL}) in $DEFAULT_VOL"
    mkdir -p ${DEFAULT_VOL}
    check_disk_formated ${LAB_VOL}
    status=$?
@@ -87,30 +102,38 @@ then
 fi
 check_folders
 check_pull $IMAGE
-docker run --rm \
-	--name jupyter \
+if [ $GPU = "yes" ]
+then
+    DOCKER_CMD="docker run --gpus all "
+fi
+echo "RUN jup"
+$DOCKER_CMD --name jupyter -d \
 	-v ${DATA_DIR}:${WORKAREA}/data \
     -v ${NOTEBOOKS_DIR}:${WORKAREA}/notebooks \
 	-e BASE_PATH=${WORKAREA} \
     -p ${DOCKER_LISTEN}:8888 \
-    ${IMAGE} jupyter lab --ip=0.0.0.0 --port=8888 --notebook-dir=${WORKAREA} --ServerApp.token=${TOKEN} --ServerApp.shutdown_no_activity_timeout=${LAB_TS} > /tmp/jupyter.log 2>&1 &
+    ${IMAGE} jupyter lab --ip=0.0.0.0 --port=8888 --notebook-dir=${WORKAREA} --ServerApp.token=${TOKEN} --ServerApp.shutdown_no_activity_timeout=${LAB_TS}  | tee /dev/fd/3
+docker logs jupyter | tee /dev/fd/3
 
 cat <<EOT > /etc/Caddyfile
 ${LAB_URL} {
 	reverse_proxy ${DOCKER_LISTEN}
 }
 EOT
-
 sleep 5
-caddy run --config /etc/Caddyfile > /tmp/caddy.log 2>&1 &
+caddy run --config /etc/Caddyfile > /var/log/caddy.log 2>&1 &
 running=`docker ps | grep jupyter | wc -l`
-echo JUPYTER Running: ${running}
+_log "JUPYTER Running: ${running}"
 while [ $running -gt 0 ]
 do
-    echo "Still running jupyter"
+    _log "Still running jupyter"
     running=`docker ps | grep jupyter | wc -l`
     sleep $CHECK_EVERY
 done
-
-echo "Shuting down"
-shutdown -h now
+if [ $DEBUG = "yes" ]
+then
+    echo "Shutdown -h now"
+else
+    _log "Shutdown -h now"
+    shutdown -h now | tee /dev/fd/3
+fi

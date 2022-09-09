@@ -114,11 +114,11 @@ class JupyterController:
             nodes = find_gce(self.prov, ram, cpu, gpu)
         return nodes
 
-    def _get_startup_script(self, gpu=None):
+    def _get_startup_script(self):
         here = os.path.abspath(os.path.dirname(__file__))
         _file = f"{self.prov.providerid}_startup.sh"
-        if gpu:
-            _file = f"{self.prov.providerid}_startup_gpu.sh"
+        # if gpu:
+        #    _file = f"{self.prov.providerid}_startup_gpu.sh"
         with open(f"{here}/files/{_file}", "r") as f:
             startup = f.read()
         return startup
@@ -163,7 +163,8 @@ class JupyterController:
                    tags=["http-server", "https-server"],
                    instance_type=None,
                    volume_data=None,
-                   lab_timeout=30,
+                   lab_timeout=20 * 60, # in seconds
+                   debug=False
                    ):
         if ram and cpu and not instance_type:
             _types = self.find_node_types(ram, cpu)
@@ -197,7 +198,7 @@ class JupyterController:
         vm = VMRequest(
             name=vm_name,
             instance_type=node_type,
-            startup_script=self._get_startup_script(gpu),
+            startup_script=self._get_startup_script(),
             location=self.location,
             provider=self.prov.providerid,
             boot=BootDiskRequest(
@@ -214,6 +215,8 @@ class JupyterController:
                 "labvol": volume_data,
                 "labuid": uuid,
                 "labtimeout": lab_timeout,
+                "debug": "yes" if debug else "no",
+                "gpu": "yes" if gpu else "no",
             },
             gpu=_gpu,
             attached_disks=to_attach,
