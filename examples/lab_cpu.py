@@ -27,7 +27,7 @@ rsp = jup.create_lab(
     instance_type="e2-micro",
     volume_data="testing-data",
     boot_image="lab-minimal-010",
-		debug=True,
+    debug=True,
 )
 console.print("=> Congrats! Lab created")
 console.print("Go to: ")

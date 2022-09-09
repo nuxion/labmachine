@@ -6,7 +6,7 @@ from labmachine.base import DNSSpec
 from labmachine.types import DNSRecord, DNSZone
 from libcloud.dns.base import Record, Zone
 from libcloud.dns.providers import get_driver
-from libcloud.dns.types import Provider
+from libcloud.dns.types import Provider, RecordDoesNotExistError
 
 from .common import get_auth_conf
 
@@ -97,6 +97,9 @@ class GoogleDNS(DNSSpec):
 
     def delete_record(self, zoneid: str, recordid: str) -> bool:
         """ "A:testlib.dymax.app."""
-        r = self.driver.get_record(zoneid, recordid)
-        deleted = self.driver.delete_record(r)
+        try:
+            r = self.driver.get_record(zoneid, recordid)
+            deleted = self.driver.delete_record(r)
+        except RecordDoesNotExistError:
+            return False
         return deleted

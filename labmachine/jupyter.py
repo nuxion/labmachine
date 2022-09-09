@@ -2,7 +2,7 @@ import json
 import os
 import secrets
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Union
 from urllib.parse import urlparse
 
 from pydantic import BaseModel
@@ -24,12 +24,11 @@ class JupyterState(BaseModel):
     dns_provider: str
     location: str
     zone_id: str
+    self_link: str
     volumes: List[BlockStorage] = []
     vm: Optional[VMInstance] = None
     url: Optional[str] = None
     record: Optional[DNSRecord] = None
-    volumes: Set[BlockStorage] = []
-    self_link: str = None
 
 
 class LabResponse(BaseModel):
@@ -54,19 +53,21 @@ def fetch_state(path) -> JupyterState:
 
 
 def push_state(state: JupyterState) -> str:
+    _dict = state.dict()
+    jd = json.dumps(_dict)
+
     if state.self_link.startswith("gs://"):
         GS: GenericKVSpec = utils.get_class(
             "labmachine.io.kv_gcs.KVGS")
         _parsed = urlparse(state.self_link)
         gs = GS(_parsed.netloc)
-        _d = json.dumps(state.dict())
         _fp = f"{_parsed.path[1:]}"
-        gs.put(_fp, _d.encode())
+        gs.put(_fp, jd.encode())
         fp = state.self_link
     else:
         _fp = Path(state.self_link).resolve()
         with open(_fp, "w") as f:
-            f.write(json.dumps(state.dict()))
+            f.write(json.dumps(_dict))
         fp = str(_fp)
     return fp
 
@@ -100,7 +101,7 @@ def find_gce(prov: ProviderSpec, ram: int, cpu: str, gpu="") \
 
 def find_node_types(prov: ProviderSpec, ram=2, cpu=2, gpu="") \
         -> List[InstanceType]:
-    if prov.providerid == "gce":
+    if self.prov.providerid == "gce":
         nodes = find_gce(prov, ram, cpu, gpu)
     return nodes
 
@@ -115,6 +116,28 @@ class JupyterController:
         self.dns = dns
         self._zone = self.dns.get_zone(state.zone_id)
         self._state: JupyterState = state
+        self._volumes = set(self._state.volumes)
+
+    @classmethod
+    def init(cls, project,
+             compute_provider,
+             dns_provider,
+             location,
+             dns_id,
+             state_path) -> Union["JupyterController", None]:
+        if not fetch_state(state_path):
+            st = JupyterState(
+                project=project,
+                compute_provider=compute_provider,
+                dns_provider=dns_provider,
+                location=location,
+                zone_id=dns_id,
+                self_link=path,
+            )
+            fp = push_state(st)
+            jup = cls.from_state(path)
+            return jup
+        return None
 
     @classmethod
     def from_state(cls, path: str) -> "JupyterController":
@@ -140,6 +163,10 @@ class JupyterController:
     def prj(self) -> str:
         return self._state.project
 
+    def build_url(self, vm_name) -> str:
+        url = f"{vm_name}.{self.prj}.{self.zone.domain}"
+        return url
+
     def find_node_types(self, ram=2, cpu=2) -> List[InstanceType]:
         if prov.providerid == "gce":
             nodes = find_gce(self.prov, ram, cpu, gpu)
@@ -157,7 +184,9 @@ class JupyterController:
     def check_volume(self, name) -> bool:
         try:
             vol = self.prov.get_volume(name)
-            self._state.volumes.add(vol)
+            if vol not in self._volumes:
+                self._state.volumes.append(vol)
+                self._volumes.add(vol)
             return True
         except Exception:
             return False
@@ -177,7 +206,8 @@ class JupyterController:
             storage_type=storage_type,
         )
         st = self.prov.create_volume(sr)
-        self._state.volumes.add(st)
+        self._state.volumes.append(st)
+        self._volumes.add(st)
 
     def create_lab(self,
                    container="jupyter/minimal-notebook:python-3.10.6",
@@ -189,7 +219,6 @@ class JupyterController:
                    ram=1,
                    cpu=1,
                    gpu=None,
-                   domainid="",
                    network="default",
                    tags=["http-server", "https-server"],
                    instance_type=None,
@@ -210,16 +239,22 @@ class JupyterController:
 
         vm_name = f"lab-{_name}"
         zone = self.zone
-        url = f"{vm_name}.{self.prj}.{zone.domain}"
+        url = self.build_url(vm_name)
         self._state.url = url
         to_attach = []
         if volume_data:
-            to_attach = [
-                AttachStorage(
-                    disk_name=volume_data,
-                    mode="READ_WRITE",
-                )
-            ]
+            vol = self.prov.get_volume(volume_data)
+            if vol:
+                to_attach = [
+                    AttachStorage(
+                        disk_name=volume_data,
+                        mode="READ_WRITE",
+                    )
+                ]
+                if vol not in self._volumes:
+                    self._state.volumes.append(vol)
+                    self._volumes.add(vol)
+
         _gpu = None
         if gpu:
             _gpu = GPURequest(name="gpu",
@@ -276,29 +311,53 @@ class JupyterController:
         )
 
     def destroy_lab(self):
-        self.prov.destroy_vm(vm=self._state.vm.vm_name,
-                             location=self._state.vm.location)
-        self._state.vm = None
-        _record = f"{self._state.record.record_type}:{self._state.record.name}"
-        self.dns.delete_record(self.zone.id, _record)
-        self._state.record = None
+        if self._state.vm:
+            self.prov.destroy_vm(vm=self._state.vm.vm_name,
+                                 location=self._state.vm.location)
+            self._state.vm = None
+        if self._state.record:
+            _record = f"{self._state.record.record_type}:{self._state.record.name}"
+            self.dns.delete_record(self.zone.id, _record)
+            self._state.record = None
         self._state.url = None
 
-    def save(self) -> str:
+    def push(self) -> str:
         """ Returns the final path where the file is written """
-        push_state()
-        if self._state.self_link.startswith("gs://"):
-
-            GS: GenericKVSpec = utils.get_class(
-                "labmachine.io.kv_gcs.KVGS")
-            gs = GS(bucket)
-            _d = json.dumps(self._state.dict())
-            _fp = f"{self.prj}/{self.location}/{path}"
-            gs.put(_fp, _d.encode())
-            fp = f"gs://{bucket}/{_fp}"
-        else:
-            _fp = Path("path").resolve()
-            with open(_fp, "w") as f:
-                f.write(json.dumps(self._state.dict()))
-            fp = str(_fp)
+        fp = push_state(self._state)
         return fp
+
+    def fetch(self, console=None):
+        vms = self.prov.list_vms()
+        vm_set = False
+        for vm in vms:
+            prj = vm.labels.get("project")
+            if prj == self._state.project:
+                self._state.vm = vm
+                if console:
+                    console.print(
+                        f"=> VM {self._state.vm.vm_name} fetched")
+                    vm_set = True
+                # for vol in self._state.vm.volumes:
+                #     _v = self.prov.get_volume(vol)
+                #     if _v not in 
+                #     
+                break
+            
+        if not vm_set:
+            self._state.vm = None
+            if console:
+                console.print(
+                    f"=> Stale vm found")
+        records = self.dns.list_records(self._state.zone_id)
+        if self._state.vm:
+            for rec in records:
+                if self._state.vm.vm_name in rec.name:
+                    self._state.record = rec
+                    if console:
+                        console.print(
+                            f"=> DNS {self._state.record.name} fetched")
+                    self._state.url = self.build_url(self._state.vm.vm_name)
+                    break
+
+        _dict = self._state.dict()
+        return _dict
