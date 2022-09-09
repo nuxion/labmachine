@@ -1,4 +1,8 @@
+import asyncio
+from pathlib import Path
+from importlib import import_module
 from nanoid import generate
+
 from labmachine.defaults import NANO_ID_ALPHABET
 
 
@@ -7,3 +11,27 @@ def generate_random(size=10, strategy="nanoid", alphabet=NANO_ID_ALPHABET) -> st
     if strategy == "nanoid":
         return generate(alphabet=alphabet, size=size)
     raise NotImplementedError("Strategy %s not implemented", strategy)
+
+
+async def run_async(func, *args, **kwargs):
+    """Run sync functions from async code"""
+    loop = asyncio.get_running_loop()
+    rsp = await loop.run_in_executor(None, func, *args, **kwargs)
+    return rsp
+
+
+def mkdir_p(fp):
+    """Make the fullpath
+    similar to mkdir -p in unix systems.
+    """
+    Path(fp).mkdir(parents=True, exist_ok=True)
+
+
+def get_class(fullclass_path):
+    """get a class or object from a module. The fullclass_path should be passed as:
+    package.my_module.MyClass
+    """
+    module, class_ = fullclass_path.rsplit(".", maxsplit=1)
+    mod = import_module(module)
+    cls = getattr(mod, class_)
+    return cls

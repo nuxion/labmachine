@@ -58,10 +58,5 @@ python3 examples/destroy_lab.py
 
 ## Next work
 
-- [x] Provisioning GPU 
-- [ ] State sync
-- [ ] Maybe a cli
-- [ ] Cloudflare dns
-- [ ] import state
-- [ ] clean old code
-- [ ] startup script documentation
+See https://trello.com/b/F2Smw3QO/labmachine
+
