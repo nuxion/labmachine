@@ -84,7 +84,8 @@ class CloudflareDNS(DNSSpec):
             type=record.record_type,
             data=record.data
         )
-        return r.data
+        record.id = r.id
+        return record.dict()
 
     def delete_record(self, zoneid: str, recordid: str) -> bool:
         """ "A:testlib.dymax.app."""

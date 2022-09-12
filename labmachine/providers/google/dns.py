@@ -56,8 +56,7 @@ class GoogleDNS(DNSSpec):
         pass
 
     def _data2record(self, r: Record) -> DNSRecord:
-
-        _id = f"{r.record_type}:{r.name}"
+        _id = f"{r.type}:{r.name}"
         return DNSRecord(
             id=_id,
             name=r.name,
@@ -96,7 +95,8 @@ class GoogleDNS(DNSSpec):
                 "ttl": record.ttl
             }
         )
-        return r.data
+        record.id = r.id
+        return record.dict()
 
     def delete_record(self, zoneid: str, recordid: str) -> bool:
         """ "A:testlib.dymax.app."""

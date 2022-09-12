@@ -389,8 +389,9 @@ class JupyterController:
                 instance.public_ips[0]
             ]
         )
+        data = self.dns.create_record(record)
+        record.id = data.id
         self._state.record = record
-        self.dns.create_record(record)
         return LabResponse(
             url=url.strip("."),
             token=token,
@@ -430,18 +431,15 @@ class JupyterController:
                 break
         if not vm_set:
             self._state.vm = None
-            if console:
-                console.print(
-                    f"=> Stale vm found")
         records = self.dns.list_records(self._state.zone_id)
-        if self._state.vm:
+        if self._state.url:
+            base_name = self._state.url.split(".")[0]
             for rec in records:
-                if self._state.vm.vm_name in rec.name:
+                if base_name in rec.name:
                     self._state.record = rec
                     if console:
                         console.print(
                             f"=> DNS {self._state.record.name} fetched")
-                    self._state.url = self.build_url(self._state.vm.vm_name)
                     break
         volumes = {}
         for _vol in self._state.volumes.keys():

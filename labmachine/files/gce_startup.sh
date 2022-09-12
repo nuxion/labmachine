@@ -109,7 +109,7 @@ then
    mount ${DEVICE}-${LAB_VOL} ${DEFAULT_VOL}
 fi
 check_folders
-if [ "${REGISTRY}" != "null" ];
+if [ ! -z "${REGISTRY}" ];
 then
    login_docker
    IMAGE=${REGISTRY}/${IMAGE}

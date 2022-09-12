@@ -1,3 +1,4 @@
+import json
 import sys
 import time
 from pathlib import Path
@@ -31,6 +32,19 @@ def save_state(state):
 def load_state() -> str:
     data = read_toml(defaults.JUPCTL_CONF)
     return data.get("state")
+
+
+def check_readiness(url: str, retries=5):
+    code = -1
+    try_ = 0
+    _url = url if url.startswith("https://") else f"https://{url}"
+    while code != 200 or try_ >= retries:
+        res = requests.get(_url)
+        code = res.status_code
+        if code != 200:
+            time.sleep(10)
+        try_ += 1
+    return code
 
 
 @click.group()
@@ -232,23 +246,25 @@ def jupyter_up(volume, container, boot_image, instance_type, network, tags,
                 debug=debug,
             )
             jup.push()
+    code = 200
     if wait:
-        code = -1
-        while code != 200:
-            res = requests.get(f"https://{rsp.url}")
-            code = res.status_code
-            time.sleep(10)
+        code = check_readiness(rsp.url)
 
-    console.print("=> Congrats! Lab created")
-    console.print("Go to: ")
-    console.print(f"\t [magenta]https://{rsp.url}[/]")
-    console.print(f"\t Token: [red]{rsp.token}[/]")
+    if code == 200:
+        console.print("=> Congrats! Lab created")
+        console.print("Go to: ")
+        console.print(f"\t [magenta]https://{rsp.url}[/]")
+        console.print(f"\t Token: [red]{rsp.token}[/]")
+    else:
+        console.print(f"[orange] {rsp.url} not avaialable, code {code}[/]")
 
 
 @cli.command(name="fetch")
 @click.option("--state", "-s", default=None,
               help="Where state will be stored")
-def fetch(state):
+@click.option("--output", "-o", default=None,
+              help="Path to record state")
+def fetch(state, output):
     """ fetch new objects from the provider """
     _state = state if state else load_state()
     jup = JupyterController.from_state(_state)
@@ -256,6 +272,9 @@ def fetch(state):
         task1 = progress.add_task("Fetching new objects from cloud")
         _dict = jup.fetch(console)
     print_json(data=_dict)
+    if output:
+        with open(output, "w") as f:
+            f.write(json.dumps(_dict))
     jup.push()
 
 
@@ -382,6 +401,48 @@ def clean_state_cmd(state):
         clean_state(_state)
         Path(defaults.JUPCTL_CONF).unlink()
         console.print(f"[green]State deleted from {_state}[/]")
+
+
+@cli.command(name="wait")
+@click.option("--retries", "-r", default=5,
+              help="How many tries")
+@click.argument("url")
+def wait_for_jupyter(retries, url):
+    """ Wait for jupyter to be ready """
+    with progress:
+        task = progress.add_task("Waiting for jupyter lab")
+        code = check_readiness(url, retries)
+    if code == 200:
+        console.print(f"[green]{url} Ready[/]")
+    else:
+        console.print(f"[orange] {url} not avaialable, code: {code}[/]")
+
+
+@cli.command(name="status")
+@click.option("--state", "-s", default=None,
+              help="Where state will be stored")
+@click.option("--output", "-o", default=None,
+              help="Path to record state")
+def show_state(state, output):
+    """ Shows state """
+    _state = state if state else load_state()
+    jup = JupyterController.from_state(_state)
+    console.print_json(data=jup._state.dict())
+    if output:
+        with open(output, "w") as f:
+            f.write(json.dumps(_dict))
+
+
+@cli.command(name="push")
+@click.option("--from-file", "-f", default="state.json",
+              help="Path to record state")
+def push_state(state, from_file):
+    """ Push state """
+    with open(from_file, "w") as f:
+        jdata = json.loads(f.read())
+    _state = JupyterState(**jdata)
+    push_state(_state)
+    console.print(f"State {from_file} pushed to {_state.self_link}")
 
 
 cli.add_command(volumes)
