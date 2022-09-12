@@ -1,6 +1,10 @@
 import asyncio
-from pathlib import Path
 from importlib import import_module
+from pathlib import Path
+from typing import Any, Dict
+
+import tomli
+import tomli_w
 from nanoid import generate
 
 from labmachine.defaults import NANO_ID_ALPHABET
@@ -35,3 +39,14 @@ def get_class(fullclass_path):
     mod = import_module(module)
     cls = getattr(mod, class_)
     return cls
+
+
+def write_toml(fpath, data: Dict[Any, Any]):
+    with open(fpath, "wb") as f:
+        tomli_w.dump(data, f)
+
+
+def read_toml(fpath) -> Dict[Any, Any]:
+    with open(fpath, "r") as f:
+        data = tomli.loads(f.read())
+        return data

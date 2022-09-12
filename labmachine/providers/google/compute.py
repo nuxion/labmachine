@@ -13,6 +13,7 @@ from labmachine.utils import generate_random
 from libcloud.compute.base import Node, NodeLocation
 from libcloud.compute.providers import get_driver
 from libcloud.compute.types import Provider
+from libcloud.common import google
 
 from .common import get_auth_conf
 
@@ -202,24 +203,27 @@ class GCEProvider(ProviderSpec):
         _node.destroy()
 
     def get_volume(self, disk: str, location: Optional[str] = None) \
-            -> BlockStorage:
-        v = self.driver.ex_get_volume(disk, zone=location)
-        loc = v.extra['zone'].name
-        stat = v.extra['status']
-        mount = v.extra['labels'].get("mount")
-        source = v.extra['sourceImage']
-        return BlockStorage(
-            id=f"{self.providerid}/{loc}/{v.name}",
-            name=v.name,
-            size=v.size,
-            location=loc,
-            status=stat,
-            mount=mount,
-            source_image=source,
-            description=v.extra["description"],
-            storage_type=v.extra["type"],
-            labels=v.extra["labels"],
-        )
+            -> Union[BlockStorage, None]:
+        try:
+            v = self.driver.ex_get_volume(disk, zone=location)
+            loc = v.extra['zone'].name
+            stat = v.extra['status']
+            mount = v.extra['labels'].get("mount")
+            source = v.extra['sourceImage']
+            return BlockStorage(
+                id=f"{self.providerid}/{loc}/{v.name}",
+                name=v.name,
+                size=v.size,
+                location=loc,
+                status=stat,
+                mount=mount,
+                source_image=source,
+                description=v.extra["description"],
+                storage_type=v.extra["type"],
+                labels=v.extra["labels"],
+            )
+        except google.ResourceNotFoundError:
+            return None
 
     def create_volume(self, disk: StorageRequest) -> BlockStorage:
         vol = self.driver.create_volume(
@@ -229,9 +233,21 @@ class GCEProvider(ProviderSpec):
             snapshot=disk.snapshot,
             ex_disk_type=disk.storage_type,
         )
-        block = BlockStorage(id=vol.id, status=vol.extra["status"] ,**disk.dict())
+        block = BlockStorage(
+            id=vol.id, status=vol.extra["status"], **disk.dict())
         # block.extra = vol.extra
         return block
+
+    def resize_volume(self, name: str, size: str,
+                      location: Optional[str] = None) -> bool:
+        vol = self.driver.ex_get_volume(name, zone=location)
+
+        was_ok = self.driver.ex_resize_volume(
+            vol,
+            int(size),
+        )
+        # block.extra = vol.extra
+        return was_ok
 
     def destroy_volume(self, disk: str, location: Optional[str] = None) \
             -> bool:

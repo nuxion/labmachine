@@ -25,7 +25,7 @@ class JupyterState(BaseModel):
     location: str
     zone_id: str
     self_link: str
-    volumes: List[BlockStorage] = []
+    volumes: Optional[List[BlockStorage]] = None
     vm: Optional[VMInstance] = None
     url: Optional[str] = None
     record: Optional[DNSRecord] = None
@@ -37,19 +37,22 @@ class LabResponse(BaseModel):
     url: str
 
 
-def fetch_state(path) -> JupyterState:
+def fetch_state(path) -> Union[JupyterState, None]:
     if path.startswith("gs://"):
         GS: GenericKVSpec = utils.get_class("labmachine.io.kv_gcs.KVGS")
         _parsed = urlparse(path)
         gs = GS(_parsed.netloc)
         data = gs.get(f"{_parsed.path[1:]}")
-        data = data.decode("utf-8")
+        if data:
+            data = data.decode("utf-8")
     else:
         with open(path, "r") as f:
             data = f.read()
-
-    s = JupyterState(**json.loads(data))
-    return s
+    if data:
+        jdata = json.loads(data)
+        s = JupyterState(**jdata)
+        return s
+    return None
 
 
 def push_state(state: JupyterState) -> str:
@@ -116,7 +119,8 @@ class JupyterController:
         self.dns = dns
         self._zone = self.dns.get_zone(state.zone_id)
         self._state: JupyterState = state
-        self._volumes = set(self._state.volumes)
+        self._volumes = set(
+            self._state.volumes) if self._state.volumes else set()
 
     @classmethod
     def init(cls, project,
@@ -132,10 +136,10 @@ class JupyterController:
                 dns_provider=dns_provider,
                 location=location,
                 zone_id=dns_id,
-                self_link=path,
+                self_link=state_path,
             )
             fp = push_state(st)
-            jup = cls.from_state(path)
+            jup = cls.from_state(state_path)
             return jup
         return None
 
@@ -181,15 +185,36 @@ class JupyterController:
             startup = f.read()
         return startup
 
+    def import_volume(self, name):
+        _v = self.prov.get_volume(name, location=self.location)
+        self._state.volumes.append(_v)
+        self._volumes.add(_v)
+
+    def resize_volume(self, name, size) -> bool:
+        vol = self.prov.get_volume(name)
+        if vol in self._volumes:
+            res = self.prov.resize_volume(name, size)
+            return res
+        return False
+
+    def destroy_volume(self, name) -> bool:
+        vol = self.prov.get_volume(name)
+        if vol in self._volumes:
+            res = self.prov.destroy_volume(name, self.location)
+            self._volumes.remove(vol)
+            return res
+        return False
+
     def check_volume(self, name) -> bool:
         try:
             vol = self.prov.get_volume(name)
-            if vol not in self._volumes:
+            if vol and vol not in self._volumes:
                 self._state.volumes.append(vol)
                 self._volumes.add(vol)
-            return True
+                return True
         except Exception:
             return False
+        return False
 
     def create_volume(self, name,
                       size="10",
@@ -339,10 +364,9 @@ class JupyterController:
                     vm_set = True
                 # for vol in self._state.vm.volumes:
                 #     _v = self.prov.get_volume(vol)
-                #     if _v not in 
-                #     
+                #     if _v not in
+                #
                 break
-            
         if not vm_set:
             self._state.vm = None
             if console:
@@ -358,6 +382,14 @@ class JupyterController:
                             f"=> DNS {self._state.record.name} fetched")
                     self._state.url = self.build_url(self._state.vm.vm_name)
                     break
+        vol_names = [v.name for v in self._volumes]
+        volumes = []
+        for _vol in vol_names:
+            vol = self.prov.get_volume(_vol)
+            if vol:
+                volumes.append(vol)
+        self._volumes = set(volumes)
+        self._state.volumes = volumes
 
         _dict = self._state.dict()
         return _dict

@@ -30,11 +30,16 @@ class ProviderSpec(ABC):
         pass
 
     @abstractmethod
-    def get_volume(self, vol_name) -> BlockStorage:
+    def get_volume(self, vol_name) -> Union[BlockStorage, None]:
         pass
 
     @abstractmethod
     def create_volume(self, disk: StorageRequest) -> BlockStorage:
+        pass
+
+    @abstractmethod
+    def resize_volume(self, name: str, size: str,
+                      location: Optional[str] = None) -> bool:
         pass
 
     @abstractmethod
