@@ -12,7 +12,8 @@ from rich.table import Table
 
 from labmachine import defaults, shortcuts
 from labmachine.jupyter import (DNS_PROVIDERS, VM_PROVIDERS, JupyterController,
-                                JupyterState, fetch_state, push_state)
+                                JupyterState, clean_state, fetch_state,
+                                push_state)
 from labmachine.types import DNSZone
 from labmachine.utils import get_class, read_toml, write_toml
 
@@ -192,6 +193,8 @@ def list_provs(kind):
               help="Instance type")
 @click.option("--network", "-n", default="default",
               help="network")
+@click.option("--registry", "-r", default=None,
+              help="Registry to be used")
 @click.option("--tags", "-t", default="http-server,https-server",
               help="Tags to be used")
 @click.option("--timeout", default=20,
@@ -202,7 +205,7 @@ def list_provs(kind):
 @click.option("--wait", "-w", is_flag=True, default=False,
               help="Wait until service is ready")
 def jupyter_up(volume, container, boot_image, instance_type, network, tags,
-               timeout, state, debug, wait, from_module):
+               timeout, state, debug, wait, registry, from_module):
     """ Create a VM instance for jupyter """
     if from_module:
         with progress:
@@ -214,7 +217,8 @@ def jupyter_up(volume, container, boot_image, instance_type, network, tags,
         if volume:
             console.print("=> Checking if volume exist")
             if not jup.check_volume(volume):
-                console.print(f"=> [orange]Warning: volume {volume} doesn't exist")
+                console.print(
+                    f"=> [orange]Warning: volume {volume} doesn't exist")
             # jup.create_volume(volume, size=volume_size)
         with progress:
             task = progress.add_task("Starting lab creation")
@@ -300,7 +304,7 @@ def volume_list(state, get_all):
     if get_all:
         vols = jup.prov.list_volumes()
     else:
-        vols = jup._state.volumes
+        vols = jup._state.volumes.values()
     table = Table(title=f"Volumes")
 
     table.add_column("name", justify="left")
@@ -342,6 +346,7 @@ def volume_resize(state, name, size):
     jup = JupyterController.from_state(_state)
     res = jup.resize_volume(name, size)
     if res:
+        jup.push()
         console.print(f"[green]Volume {name} resized.[/]")
     else:
         console.print(f"[red]Volume {name} resize fail.[/]")
@@ -364,6 +369,19 @@ def volume_destroy(state, name):
             console.print(f"[green]Volume {name} destroyed.[/]")
         else:
             console.print(f"[red]Volume {name} destroy failed.[/]")
+
+
+@cli.command(name="clean")
+@click.option("--state", "-s", default=None,
+              help="Where state will be stored")
+def clean_state_cmd(state):
+    """ Will remove the state file """
+    _state = state if state else load_state()
+    _confirm = Confirm.ask(f"Do you want to remove the state from {_state}?")
+    if _confirm:
+        clean_state(_state)
+        Path(defaults.JUPCTL_CONF).unlink()
+        console.print(f"[green]State deleted from {_state}[/]")
 
 
 cli.add_command(volumes)

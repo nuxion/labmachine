@@ -33,9 +33,11 @@ gcloud iam service-accounts create labcreator
 
 Then add the following roles to the account:
 
-	- `roles/compute.instanceAdmin.v1`
-	- `roles/iam.serviceAccountUser`
-  - `roles/dns.admin` check https://cloud.google.com/dns/docs/access-control
+- `roles/compute.instanceAdmin.v1`
+- `roles/iam.serviceAccountUser`
+- `roles/dns.admin` check https://cloud.google.com/dns/docs/access-control
+- `roles/artifactregistry.reader` If artifacts is used for pulling containers
+
 
 DNS role is needed only if the google dns provider is used
 

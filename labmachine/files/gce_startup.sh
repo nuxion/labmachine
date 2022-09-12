@@ -51,6 +51,14 @@ LAB_VOL=`echo $META | jq .labvol | tr -d '"'`
 LAB_TS=`echo $META | jq .labtimeout | tr -d '"'` # in minutes
 GPU=`echo $META | jq .gpu | tr -d '"'`
 DEBUG=`echo $META | jq .debug | tr -d '"'`
+REGISTRY=`echo $META | jq .registry | tr -d '"'`
+LOCATION=`echo $META | jq .location | tr -d '"'`
+
+login_docker() {
+    # https://${LOCATION}-docker.pkg.dev
+    gcloud auth print-access-token  | docker login -u oauth2accesstoken  --password-stdin https://${REGISTRY}
+}
+
 
 check_disk_formated() {
     lsblk -f ${DEVICE}-${1} | grep ext4
@@ -101,12 +109,18 @@ then
    mount ${DEVICE}-${LAB_VOL} ${DEFAULT_VOL}
 fi
 check_folders
+if [ "${REGISTRY}" != "null" ];
+then
+   login_docker
+   IMAGE=${REGISTRY}/${IMAGE}
+   _log "Final image is ${IMAGE}"
+fi
 check_pull $IMAGE
 if [ $GPU = "yes" ]
 then
     DOCKER_CMD="docker run --gpus all "
 fi
-echo "RUN jup"
+_log "Starting JUPYTER"
 $DOCKER_CMD --name jupyter -d \
 	-v ${DATA_DIR}:${WORKAREA}/data \
     -v ${NOTEBOOKS_DIR}:${WORKAREA}/notebooks \

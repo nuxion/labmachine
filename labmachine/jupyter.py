@@ -3,7 +3,7 @@ import os
 import secrets
 from importlib import import_module
 from pathlib import Path
-from typing import List, Optional, Set, Union, Dict, Any
+from typing import Any, Dict, List, Optional, Set, Union
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, BaseSettings
@@ -29,6 +29,7 @@ class JupyterInstance(BaseModel):
     ram: int = 1
     cpu: int = 1
     gpu: Optional[str] = None
+    registry: Optional[str] = None
     network: str = "default"
     tags: List[str] = ["http-server", "https-server"]
     instance_type: Optional[str] = None
@@ -61,7 +62,7 @@ class JupyterState(BaseModel):
     location: str
     zone_id: str
     self_link: str
-    volumes: Optional[List[BlockStorage]] = None
+    volumes: Dict[str, BlockStorage] = {}
     vm: Optional[VMInstance] = None
     url: Optional[str] = None
     record: Optional[DNSRecord] = None
@@ -103,6 +104,18 @@ def fetch_state(path) -> Union[JupyterState, None]:
         s = JupyterState(**jdata)
         return s
     return None
+
+
+def clean_state(state_link) -> str:
+    if state_link.startswith("gs://"):
+        GS: GenericKVSpec = utils.get_class(
+            "labmachine.io.kv_gcs.KVGS")
+        _parsed = urlparse(state_link)
+        gs = GS(_parsed.netloc)
+        _fp = f"{_parsed.path[1:]}"
+        gs.delete(_fp)
+    else:
+        pass
 
 
 def push_state(state: JupyterState) -> str:
@@ -169,8 +182,6 @@ class JupyterController:
         self.dns = dns
         self._zone = self.dns.get_zone(state.zone_id)
         self._state: JupyterState = state
-        self._volumes = set(
-            self._state.volumes) if self._state.volumes else set()
 
     @classmethod
     def init(cls, project,
@@ -237,33 +248,31 @@ class JupyterController:
 
     def import_volume(self, name):
         _v = self.prov.get_volume(name, location=self.location)
-        self._state.volumes.append(_v)
-        self._volumes.add(_v)
+        self._state.volumes[name] = _v
 
     def resize_volume(self, name, size) -> bool:
-        vol = self.prov.get_volume(name)
-        if vol in self._volumes:
-            res = self.prov.resize_volume(name, size)
+        vol = self._state.volumes.get(name)
+        if vol:
+            res = self.prov.resize_volume(name, size,
+                                          location=self._state.location)
+            if res:
+                vol.size = size
+                self._state.volumes[name] = vol
             return res
         return False
 
     def destroy_volume(self, name) -> bool:
-        vol = self.prov.get_volume(name)
-        if vol in self._volumes:
+        vol = self._state.volumes.get(name)
+        if vol:
             res = self.prov.destroy_volume(name, self.location)
-            self._volumes.remove(vol)
+            del(self._state.volumes[name])
             return res
         return False
 
     def check_volume(self, name) -> bool:
-        try:
-            vol = self.prov.get_volume(name)
-            if vol and vol not in self._volumes:
-                self._state.volumes.append(vol)
-                self._volumes.add(vol)
-                return True
-        except Exception:
-            return False
+        vol = self.prov.get_volume(name)
+        if vol:
+            return True
         return False
 
     def create_volume(self, name,
@@ -281,8 +290,7 @@ class JupyterController:
             storage_type=storage_type,
         )
         st = self.prov.create_volume(sr)
-        self._state.volumes.append(st)
-        self._volumes.add(st)
+        self._state.volumes[name] = st
 
     def create_lab(self,
                    container="jupyter/minimal-notebook:python-3.10.6",
@@ -294,6 +302,7 @@ class JupyterController:
                    ram=1,
                    cpu=1,
                    gpu=None,
+                   registry=None,
                    network="default",
                    tags=["http-server", "https-server"],
                    instance_type=None,
@@ -326,9 +335,7 @@ class JupyterController:
                         mode="READ_WRITE",
                     )
                 ]
-                if vol not in self._volumes:
-                    self._state.volumes.append(vol)
-                    self._volumes.add(vol)
+                self._state.volumes[volume_data] = vol
 
         _gpu = None
         if gpu:
@@ -358,6 +365,8 @@ class JupyterController:
                 "labtimeout": lab_timeout,
                 "debug": "yes" if debug else "no",
                 "gpu": "yes" if gpu else "no",
+                "location": self.location,
+                "registry": registry
             },
             gpu=_gpu,
             attached_disks=to_attach,
@@ -432,14 +441,15 @@ class JupyterController:
                             f"=> DNS {self._state.record.name} fetched")
                     self._state.url = self.build_url(self._state.vm.vm_name)
                     break
-        vol_names = [v.name for v in self._volumes]
-        volumes = []
-        for _vol in vol_names:
+        volumes = {}
+        for _vol in self._state.volumes.keys():
             vol = self.prov.get_volume(_vol)
             if vol:
-                volumes.append(vol)
-        self._volumes = set(volumes)
+                volumes[_vol] = vol
         self._state.volumes = volumes
 
         _dict = self._state.dict()
         return _dict
+
+    def clean(self):
+        clean_state(self._state.self_link)
