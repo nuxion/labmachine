@@ -36,19 +36,19 @@ If you want to store the state information of your jupyter in Google Object Stor
 pip install labmachine[gcs]
 ```
 
-After that a project should be initilized (similar to git)
-Go to the root of your project and run:
-
 ## Init project
+
+After library installation a project should be initilized (similar to git)
+Go to the root of your project and run:
 
 ```
 jupctl init -d <DNS_ZONE_ID> -l <LOCATION> -s <FILEPATH_TO_STORE_STATE>
 ```
 
-What is happening here?
+**What is happening here?**
 
 1. `DNS_ZONE_ID`: is the zone id of your dns provider
-2. `LOCATION`: related to your cloud provider, si the zone and region where jupyter will run. 
+2. `LOCATION`: related to your cloud provider, this is the zone and region where jupyter will run. 
 3. `FILEPATH_TO_STORE_STATE`: Is the final path where the state of jupyter lab will be tracked. According to the path, it will identify if is a local path, a google storage path or other one. For instance:
 
 ```
@@ -57,7 +57,7 @@ jupctl init -d <DNS_ZONE_ID> -l <LOCATION> -s gs://my-bucket/my-project/state.js
 
 In that case it will use google object storage. 
 
-**Note**: Managing infraestructure it could be overhelming. `jupctl` does their best to make it easier whatever is possible, for instance to find the `DNS_ZONE_ID` you can do:
+**Note**: Managing infraestructure could be overwhelming. `jupctl` does their best to make it easier whatever is possible, for instance to find the `DNS_ZONE_ID` you can do:
 
 ```
 jupctl list-dns
@@ -69,9 +69,9 @@ Other options are available under `jupctl list-*`
 
 Now that it's initialized, you can create your first jupyter instance. 
 
-There multiple ways to create an instance: 
+There are multiple ways to create an instance: 
 
-1. Using the cli, but passing each parameter
+1. Using the cli, but passing each parameter (container, boot_image, ram, etc)
 2. Using the cli, but passing a file that contains all the information needed
 3. As library
 
