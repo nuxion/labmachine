@@ -16,7 +16,10 @@ from labmachine.types import (AttachStorage, BlockStorage, BootDiskRequest,
                               StorageRequest, VMInstance, VMRequest)
 
 VM_PROVIDERS = {"gce": "labmachine.providers.google.compute.GCEProvider"}
-DNS_PROVIDERS = {"gce": "labmachine.providers.google.dns.GoogleDNS"}
+DNS_PROVIDERS = {
+    "gce": "labmachine.providers.google.dns.GoogleDNS",
+    "cloudflare": "labmachine.providers.cloudflare.dns.CloudflareDNS",
+}
 
 
 class JupyterInstance(BaseModel):
@@ -400,8 +403,7 @@ class JupyterController:
                                  location=self._state.vm.location)
             self._state.vm = None
         if self._state.record:
-            _record = f"{self._state.record.record_type}:{self._state.record.name}"
-            self.dns.delete_record(self.zone.id, _record)
+            self.dns.delete_record(self.zone.id, self._state.record.id)
             self._state.record = None
         self._state.url = None
 

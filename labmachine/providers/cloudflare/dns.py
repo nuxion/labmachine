@@ -11,22 +11,15 @@ from libcloud.dns.types import Provider, RecordDoesNotExistError
 from .common import get_auth_conf
 
 
-class GoogleDNS(DNSSpec):
-    providerid = "gce"
+class CloudflareDNS(DNSSpec):
+    providerid = "cloudflare"
 
     def __init__(self):
         conf = get_auth_conf()
-        G = get_driver(Provider.GOOGLE)
-        # _env_creds = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-        # if _env_creds:
-        #     conf.credential_file = _env_creds
-        self._project = conf.PROJECT
-        self._account = conf.SERVICE_ACCOUNT
+        CF = get_driver(Provider.CLOUDFLARE)
 
-        self.driver = G(
-            conf.SERVICE_ACCOUNT,
-            conf.CREDENTIALS,
-            project=conf.PROJECT,
+        self.driver = CF(
+            conf.KEY,
         )
 
     def list_zones(self) -> List[DNSZone]:
@@ -56,14 +49,13 @@ class GoogleDNS(DNSSpec):
         pass
 
     def _data2record(self, r: Record) -> DNSRecord:
-
-        _id = f"{r.record_type}:{r.name}"
+        data = r.data
         return DNSRecord(
-            id=_id,
+            id=r.id,
             name=r.name,
             zoneid=r.zone.id,
             record_type=r.type,
-            data=r.data["rrdatas"]
+            data=[data]
         )
 
     def _data2zone(self, z: Zone) -> DNSZone:
@@ -90,11 +82,7 @@ class GoogleDNS(DNSSpec):
             record.name,
             z,
             type=record.record_type,
-            data={
-                "rrdatas": record.data,
-                "type": record.record_type,
-                "ttl": record.ttl
-            }
+            data=record.data
         )
         return r.data
 

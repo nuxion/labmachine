@@ -21,10 +21,11 @@ class InstanceType(BaseModel):
 
 
 class DNSRecord(BaseModel):
-    name: str
     zoneid: str
     record_type: str
     data: List[str]
+    id: Optional[str] = None
+    name: Optional[str] = None
     ttl: int = 14400  # 4 hours for an update
     extra: Optional[ExtraField] = None
 
