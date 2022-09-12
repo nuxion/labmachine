@@ -10,7 +10,7 @@ from rich.progress import Progress, SpinnerColumn
 from rich.prompt import Confirm
 from rich.table import Table
 
-from labmachine import defaults
+from labmachine import defaults, shortcuts
 from labmachine.jupyter import (DNS_PROVIDERS, VM_PROVIDERS, JupyterController,
                                 JupyterState, fetch_state, push_state)
 from labmachine.types import DNSZone
@@ -197,37 +197,43 @@ def list_provs(kind):
 @click.option("--timeout", default=20,
               help="Timeout in minutes")
 @click.option("--state", "-s", default=None, help="Where state will be stored")
+@click.option("--from-module", "-f", default=None, help="Create lab from module")
 @click.option("--debug", "-d", default=False, is_flag=True, help="flag debug")
 @click.option("--wait", "-w", is_flag=True, default=False,
               help="Wait until service is ready")
-def up(volume, container, boot_image, instance_type, network, tags,
-       timeout, state, debug, wait):
+def jupyter_up(volume, container, boot_image, instance_type, network, tags,
+               timeout, state, debug, wait, from_module):
     """ Create a VM instance for jupyter """
-    _state = state if state else load_state()
-    jup = JupyterController.from_state(_state)
-    if volume:
-        console.print("=> Checking if volume exist")
-        if not jup.check_volume(volume):
-            console.print(f"=> [orange]Warning: volume {volume} doesn't exist")
-        # jup.create_volume(volume, size=volume_size)
-    with progress:
-        task = progress.add_task("Starting lab creation")
-        rsp = jup.create_lab(
-            container=container,
-            boot_image=boot_image,
-            instance_type=instance_type,
-            volume_data=volume,
-            network=network,
-            tags=tags.split(","),
-            debug=debug,
-        )
-        jup.push()
-        if wait:
-            code = -1
-            while code != 200:
-                res = requests.get(f"https://{rsp.url}")
-                code = res.status_code
-                time.sleep(10)
+    if from_module:
+        with progress:
+            task = progress.add_task("Starting lab creation")
+            rsp = shortcuts.lab_from_module(from_module)
+    else:
+        _state = state if state else load_state()
+        jup = JupyterController.from_state(_state)
+        if volume:
+            console.print("=> Checking if volume exist")
+            if not jup.check_volume(volume):
+                console.print(f"=> [orange]Warning: volume {volume} doesn't exist")
+            # jup.create_volume(volume, size=volume_size)
+        with progress:
+            task = progress.add_task("Starting lab creation")
+            rsp = jup.create_lab(
+                container=container,
+                boot_image=boot_image,
+                instance_type=instance_type,
+                volume_data=volume,
+                network=network,
+                tags=tags.split(","),
+                debug=debug,
+            )
+            jup.push()
+    if wait:
+        code = -1
+        while code != 200:
+            res = requests.get(f"https://{rsp.url}")
+            code = res.status_code
+            time.sleep(10)
 
     console.print("=> Congrats! Lab created")
     console.print("Go to: ")

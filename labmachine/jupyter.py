@@ -1,11 +1,12 @@
 import json
 import os
 import secrets
+from importlib import import_module
 from pathlib import Path
-from typing import List, Optional, Set, Union
+from typing import List, Optional, Set, Union, Dict, Any
 from urllib.parse import urlparse
 
-from pydantic import BaseModel
+from pydantic import BaseModel, BaseSettings
 
 from labmachine import defaults, utils
 from labmachine.base import DNSSpec, ProviderSpec
@@ -16,6 +17,41 @@ from labmachine.types import (AttachStorage, BlockStorage, BootDiskRequest,
 
 VM_PROVIDERS = {"gce": "labmachine.providers.google.compute.GCEProvider"}
 DNS_PROVIDERS = {"gce": "labmachine.providers.google.dns.GoogleDNS"}
+
+
+class JupyterInstance(BaseModel):
+    container: str = "jupyter/minimal-notebook:python-3.10.6"
+    uuid: str = "1000"
+    boot_size: str = "10"
+    boot_image: str = "debian-11-bullseye-v20220822"
+    boot_type: str = "pd-standard"
+    boot_delete: bool = True
+    ram: int = 1
+    cpu: int = 1
+    gpu: Optional[str] = None
+    network: str = "default"
+    tags: List[str] = ["http-server", "https-server"]
+    instance_type: Optional[str] = None
+    volume_data: Optional[str] = None
+    lab_timeout: int = 20 * 60  # in seconds
+    debug: bool = False
+
+
+class JupyterVolume(BaseModel):
+    name: str
+    size: str = "10"
+    description: str = "Data volume",
+    storage_type: str = "pd-standard",
+    labels: Dict[str, Any] = {},
+
+
+class JupyterConfig(BaseSettings):
+    VOLUME: Optional[JupyterVolume]
+    INSTANCE: JupyterInstance
+    STATE_PATH: str = "state.json"
+
+    class Config:
+        env_prefix = "JUP_"
 
 
 class JupyterState(BaseModel):
@@ -35,6 +71,20 @@ class LabResponse(BaseModel):
     project: str
     token: str
     url: str
+
+
+def load_jupyter_conf(settings_module) -> JupyterConfig:
+    mod = import_module(settings_module)
+
+    settings_dict = {}
+    for m in dir(mod):
+        if m.isupper():
+            # sets.add(m)
+            value = getattr(mod, m)
+            settings_dict[m] = value
+
+    cfg = JupyterConfig(**settings_dict)
+    return cfg
 
 
 def fetch_state(path) -> Union[JupyterState, None]:
@@ -250,7 +300,7 @@ class JupyterController:
                    volume_data=None,
                    lab_timeout=20 * 60,  # in seconds
                    debug=False
-                   ):
+                   ) -> LabResponse:
         if ram and cpu and not instance_type:
             _types = self.find_node_types(ram, cpu)
             if _types:
