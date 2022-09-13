@@ -2,7 +2,7 @@ import os
 
 from labmachine.jupyter import JupyterInstance, JupyterVolume
 
-STATE_PATH = "gs://nbworkflows/test/state4.json"
+STATE_PATH = "state.json"
 
 VOLUME = JupyterVolume(
     name="testing-data",
