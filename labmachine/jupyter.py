@@ -92,6 +92,7 @@ def load_jupyter_conf(settings_module) -> JupyterConfig:
 
 
 def fetch_state(path) -> Union[JupyterState, None]:
+    data = None
     if path.startswith("gs://"):
         GS: GenericKVSpec = utils.get_class("labmachine.io.kv_gcs.KVGS")
         _parsed = urlparse(path)
@@ -99,7 +100,7 @@ def fetch_state(path) -> Union[JupyterState, None]:
         data = gs.get(f"{_parsed.path[1:]}")
         if data:
             data = data.decode("utf-8")
-    else:
+    elif Path(path).exists():
         with open(path, "r") as f:
             data = f.read()
     if data:
@@ -390,7 +391,7 @@ class JupyterController:
             ]
         )
         data = self.dns.create_record(record)
-        record.id = data.id
+        record.id = data["id"]
         self._state.record = record
         return LabResponse(
             url=url.strip("."),

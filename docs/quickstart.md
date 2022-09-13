@@ -22,7 +22,7 @@ The minimal roles required for a instance creation are:
 - `roles/dns.admin` check https://cloud.google.com/dns/docs/access-control
 
 
-check [permissions](docs/permissions.md) for more details. 
+check [permissions](permissions.md) for more details. 
 
 ## Installing cli
 

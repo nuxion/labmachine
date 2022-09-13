@@ -25,6 +25,7 @@ Lab files are abstractions built over this library for jupyter lab provisioning.
 - Automatic shutdown by inactivity (by Jupyter)
 - GPU Provisioning (nvidia-smi installation, docker configuration, etc)
 - Linux image creation (Packer)
+- Entities types for autocompletion
 
 # Documentation
 
