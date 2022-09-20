@@ -7,7 +7,7 @@ STATE_PATH = "state.json"
 VOLUME = JupyterVolume(
     name="testing-data",
     size="10",
-    labels={"project": "example"}
+    labels={"project": "default"}
 )
 
 INSTANCE = JupyterInstance(
