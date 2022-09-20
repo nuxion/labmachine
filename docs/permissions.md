@@ -14,7 +14,10 @@ Then add the following roles to the account:
 - `roles/iam.serviceAccountUser`
 - `roles/dns.admin` check https://cloud.google.com/dns/docs/access-control
 - `roles/artifactregistry.reader` If artifacts is used for pulling containers
+- `roles/storage.admin`
+- `roles/storage.objectAdmin`
 
+TODO: Review permissions
 
 DNS role is needed only if the google dns provider is used
 
@@ -29,3 +32,44 @@ for $perm in `cat $roles`; do
 done
 ``` 
 
+## Appendix I: Debugging permissions
+
+List SA accounts available in your project:
+
+```
+gcloud iam service-accounts list
+```
+
+List Roles assigned to an account:
+```
+gcloud projects get-iam-policy $PROJECT_ID --flatten="bindings[].members" --format='table(bindings.role)' --filter="bindings.members:$SA_ACCOUNT@$PROJECT_ID.iam.gserviceaccount.com"
+```
+
+## Appendix II: Scopes
+
+For google artifacts:
+https://cloud.google.com/artifact-registry/docs/access-control#compute
+
+General understanding of scopes: https://cloud.google.com/sdk/gcloud/reference/beta/compute/instances/set-scopes
+
+
+## Appendix III: Testing Artifact permissions
+
+Repository URL will be:
+
+https://$ZONE-docker.pkg.dev
+
+
+```
+root@lab-y7g3p:~#  gcloud auth print-access-token  | docker login -u oauth2accesstoken  --password-stdin https://us-central1-docker.pkg.dev
+WARNING! Your password will be stored unencrypted in /root/.docker/config.json.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/engine/reference/commandline/login/#credentials-store
+
+Login Succeeded
+```
+
+Listing repositories:
+```
+ gcloud artifacts repositories list
+```

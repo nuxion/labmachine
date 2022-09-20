@@ -10,10 +10,10 @@ from labmachine.base import ProviderSpec
 from labmachine.types import (AttachStorage, BlockStorage, StorageRequest,
                               VMInstance, VMRequest)
 from labmachine.utils import generate_random
+from libcloud.common import google
 from libcloud.compute.base import Node, NodeLocation
 from libcloud.compute.providers import get_driver
 from libcloud.compute.types import Provider
-from libcloud.common import google
 
 from .common import get_auth_conf
 
@@ -119,7 +119,10 @@ class GCEProvider(ProviderSpec):
             maintence_policy = "TERMINATE"
             accelerator_type = vm.gpu.gpu_type
             accelerator_count = vm.gpu.count
-
+        scopes = None
+        if vm.permissions:
+            scopes = [{"email": vm.permissions.account,
+                       "scopes": vm.permissions.roles}]
         instance = self.driver.create_node(
             vm.name,
             size=vm.instance_type,
@@ -137,6 +140,7 @@ class GCEProvider(ProviderSpec):
             ex_metadata=meta,
             ex_tags=vm.tags,
             ex_labels=vm.labels,
+            ex_service_accounts=scopes,
             # gpu
             ex_accelerator_type=accelerator_type,
             ex_accelerator_count=accelerator_count,

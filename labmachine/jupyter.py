@@ -13,7 +13,8 @@ from labmachine.base import DNSSpec, ProviderSpec
 from labmachine.io.kvspec import GenericKVSpec
 from labmachine.types import (AttachStorage, BlockStorage, BootDiskRequest,
                               DNSRecord, DNSZone, GPURequest, InstanceType,
-                              StorageRequest, VMInstance, VMRequest)
+                              Permissions, StorageRequest, VMInstance,
+                              VMRequest)
 
 VM_PROVIDERS = {"gce": "labmachine.providers.google.compute.GCEProvider"}
 DNS_PROVIDERS = {
@@ -32,6 +33,8 @@ class JupyterInstance(BaseModel):
     ram: int = 1
     cpu: int = 1
     gpu: Optional[str] = None
+    account: Optional[str] = None
+    roles: List[str] = []
     registry: Optional[str] = None
     network: str = "default"
     tags: List[str] = ["http-server", "https-server"]
@@ -312,6 +315,8 @@ class JupyterController:
                    instance_type=None,
                    volume_data=None,
                    lab_timeout=20 * 60,  # in seconds
+                   account: str = None,
+                   roles: List[str] = [],
                    debug=False
                    ) -> LabResponse:
         if ram and cpu and not instance_type:
@@ -347,6 +352,10 @@ class JupyterController:
                               gpu_type=gpu,
                               count=1)
 
+        scopes = None
+        if account:
+            scopes = Permissions(account=account, roles=roles)
+
         vm = VMRequest(
             name=vm_name,
             instance_type=node_type,
@@ -373,6 +382,7 @@ class JupyterController:
                 "registry": registry
             },
             gpu=_gpu,
+            permissions=scopes,
             attached_disks=to_attach,
             tags=tags,
             network=network,
