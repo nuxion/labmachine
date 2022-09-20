@@ -370,18 +370,18 @@ def volume_unlink(state, name):
         console.print(f"Volume {name} unlinked.")
 
 
-@ volumes.command(name="resize")
-@ click.option("--state", "-s", default=None,
+@volumes.command(name="resize")
+@click.option("--state", "-s", default=None,
               help="Where state will be stored")
-@ click.option("--name", "-n", required=True,
+@click.option("--name", "-n", required=True,
               help="Name of the volume")
-@ click.option("--size", "-S", required=True,
+@click.option("--size", "-S", required=True,
               help="New size of the volume")
 def volume_resize(state, name, size):
     """ resize a volume """
-    _state=state if state else load_state()
-    jup=JupyterController.from_state(_state)
-    res=jup.resize_volume(name, size)
+    _state = state if state else load_state()
+    jup = JupyterController.from_state(_state)
+    res = jup.resize_volume(name, size)
     if res:
         jup.push()
         console.print(f"[green]Volume {name} resized.[/]")
@@ -389,18 +389,18 @@ def volume_resize(state, name, size):
         console.print(f"[red]Volume {name} resize fail.[/]")
 
 
-@ volumes.command(name="destroy")
-@ click.option("--state", "-s", default=None,
+@volumes.command(name="destroy")
+@click.option("--state", "-s", default=None,
               help="Where state will be stored")
-@ click.option("--name", "-n", required=True,
+@click.option("--name", "-n", required=True,
               help="Name of the volume")
 def volume_destroy(state, name):
     """ resize a volume """
-    _state=state if state else load_state()
-    jup=JupyterController.from_state(_state)
-    _confirm=Confirm.ask(f"Do you want to destroy {name} volume?")
+    _state = state if state else load_state()
+    jup = JupyterController.from_state(_state)
+    _confirm = Confirm.ask(f"Do you want to destroy {name} volume?")
     if _confirm:
-        res=jup.destroy_volume(name)
+        res = jup.destroy_volume(name)
         if res:
             jup.push()
             console.print(f"[green]Volume {name} destroyed.[/]")
@@ -408,57 +408,57 @@ def volume_destroy(state, name):
             console.print(f"[red]Volume {name} destroy failed.[/]")
 
 
-@ cli.command(name="clean")
-@ click.option("--state", "-s", default=None,
+@cli.command(name="clean")
+@click.option("--state", "-s", default=None,
               help="Where state will be stored")
 def clean_state_cmd(state):
     """ Will remove the state file """
-    _state=state if state else load_state()
-    _confirm=Confirm.ask(f"Do you want to remove the state from {_state}?")
+    _state = state if state else load_state()
+    _confirm = Confirm.ask(f"Do you want to remove the state from {_state}?")
     if _confirm:
         clean_state(_state)
         Path(defaults.JUPCTL_CONF).unlink()
         console.print(f"[green]State deleted from {_state}[/]")
 
 
-@ cli.command(name="wait")
-@ click.option("--retries", "-r", default=5,
+@cli.command(name="wait")
+@click.option("--retries", "-r", default=5,
               help="How many tries")
-@ click.argument("url")
+@click.argument("url")
 def wait_for_jupyter(retries, url):
     """ Wait for jupyter to be ready """
     with progress:
-        task=progress.add_task("Waiting for jupyter lab")
-        code=check_readiness(url, retries)
+        task = progress.add_task("Waiting for jupyter lab")
+        code = check_readiness(url, retries)
     if code == 200:
         console.print(f"[green]{url} Ready[/]")
     else:
         console.print(f"[orange] {url} not avaialable, code: {code}[/]")
 
 
-@ cli.command(name="status")
-@ click.option("--state", "-s", default=None,
+@cli.command(name="status")
+@click.option("--state", "-s", default=None,
               help="Where state will be stored")
-@ click.option("--output", "-o", default=None,
+@click.option("--output", "-o", default=None,
               help="Path to record state")
 def show_state(state, output):
     """ Shows state """
-    _state=state if state else load_state()
-    jup=JupyterController.from_state(_state)
+    _state = state if state else load_state()
+    jup = JupyterController.from_state(_state)
     console.print_json(data=jup._state.dict())
     if output:
         with open(output, "w") as f:
             f.write(json.dumps(_dict))
 
 
-@ cli.command(name="push")
-@ click.option("--from-file", "-f", default="state.json",
+@cli.command(name="push")
+@click.option("--from-file", "-f", default="state.json",
               help="Path to record state")
 def push_state(state, from_file):
     """ Push state """
     with open(from_file, "w") as f:
-        jdata=json.loads(f.read())
-    _state=JupyterState(**jdata)
+        jdata = json.loads(f.read())
+    _state = JupyterState(**jdata)
     push_state(_state)
     console.print(f"State {from_file} pushed to {_state.self_link}")
 

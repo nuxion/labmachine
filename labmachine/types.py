@@ -11,6 +11,11 @@ DOCKER_GID = "997"
 AGENT_DOCKER_IMG = "nuxion/labfunctions"
 
 
+class Permissions(BaseModel):
+    account: str
+    roles: Optional[List[str]] = None
+
+
 class InstanceType(BaseModel):
     name: str
     cpu: int
@@ -118,6 +123,7 @@ class VMInstance(BaseModel):
     state: str
     private_ips: List[str]
     public_ips: Optional[List[str]] = None
+    permissions: Optional[Permissions] = None
     volumes: List[str] = []
     labels: Dict[str, Any] = {}
     tags: List[str] = []
@@ -190,6 +196,7 @@ class VMRequest(BaseModel):
     startup_script: Optional[str] = None
     ssh_user: Optional[str] = None
     ssh_public_cert: Optional[str]
+    permissions: Optional[Permissions] = None
     network: str = "default"
     internal_ip: Union[str, None] = None
     external_ip: Union[str, None] = None
