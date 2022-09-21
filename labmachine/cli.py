@@ -1,6 +1,8 @@
 import json
 import sys
 import time
+import datetime
+from datetime import timedelta
 from pathlib import Path
 
 import click
@@ -34,11 +36,12 @@ def load_state() -> str:
     return data.get("state")
 
 
-def check_readiness(url: str, retries=5):
+def check_readiness(url: str, timeout: int = 10 * 60):
+    start_time = datetime.datetime.now()
+    end_time = start_time + timedelta(seconds=timeout)
     code = -1
-    try_ = 0
     _url = url if url.startswith("https://") else f"https://{url}"
-    while code != 200 or try_ >= retries:
+    while code != 200 and datetime.datetime.now() < end_time:
         try:
             res = requests.get(_url)
             code = res.status_code
@@ -46,7 +49,6 @@ def check_readiness(url: str, retries=5):
             code = -1
         if code != 200:
             time.sleep(10)
-        try_ += 1
     return code
 
 
@@ -221,9 +223,12 @@ def list_provs(kind):
 @click.option("--debug", "-d", default=False, is_flag=True, help="flag debug")
 @click.option("--wait", "-w", is_flag=True, default=False,
               help="Wait until service is ready")
+@click.option("--wait-timeout", default=10 * 60, help="Waiting timeout (in seconds)")
 def jupyter_up(volume, container, boot_image, instance_type, network, tags,
-               timeout, state, debug, wait, registry, from_module):
+               timeout, state, debug, wait, wait_timeout, registry, from_module):
     """ Create a VM instance for jupyter """
+    code = 200
+
     if from_module:
         with progress:
             task = progress.add_task("Starting lab creation")
@@ -249,17 +254,16 @@ def jupyter_up(volume, container, boot_image, instance_type, network, tags,
                 debug=debug,
             )
             jup.push()
-    code = 200
-    if wait:
-        code = check_readiness(rsp.url)
+            if wait:
+                code = check_readiness(rsp.url, wait_timeout)
 
     if code == 200:
-        console.print("=> Congrats! Lab created")
+        console.print("=> Congrats! Lab is running now")
         console.print("Go to: ")
         console.print(f"\t [magenta]https://{rsp.url}[/]")
         console.print(f"\t Token: [red]{rsp.token}[/]")
     else:
-        console.print(f"[orange] {rsp.url} not avaialable, code {code}[/]")
+        console.print(f"[orange] {rsp.url} still not available, code {code}[/]")
 
 
 @cli.command(name="fetch")
@@ -422,14 +426,14 @@ def clean_state_cmd(state):
 
 
 @cli.command(name="wait")
-@click.option("--retries", "-r", default=5,
-              help="How many tries")
+@click.option("--timeout", "-t", default=10 * 60,
+              help="Timeout (in seconds)")
 @click.argument("url")
-def wait_for_jupyter(retries, url):
+def wait_for_jupyter(timeout, url):
     """ Wait for jupyter to be ready """
     with progress:
         task = progress.add_task("Waiting for jupyter lab")
-        code = check_readiness(url, retries)
+        code = check_readiness(url, timeout)
     if code == 200:
         console.print(f"[green]{url} Ready[/]")
     else:
