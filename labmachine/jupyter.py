@@ -52,10 +52,17 @@ class JupyterVolume(BaseModel):
     labels: Dict[str, Any] = {},
 
 
+class ContainerRegistry(BaseModel):
+    name: str
+    project: str
+    location: str
+
+
 class JupyterConfig(BaseSettings):
     VOLUME: Optional[JupyterVolume]
     INSTANCE: JupyterInstance
     STATE_PATH: str = "state.json"
+    REGISTRY: Optional[ContainerRegistry] = None
 
     class Config:
         env_prefix = "JUP_"
@@ -72,6 +79,7 @@ class JupyterState(BaseModel):
     vm: Optional[VMInstance] = None
     url: Optional[str] = None
     record: Optional[DNSRecord] = None
+    registry: Optional[ContainerRegistry] = None
 
 
 class LabResponse(BaseModel):

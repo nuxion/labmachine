@@ -1,5 +1,7 @@
 # Quick start
 
+This quickstart works on google cloud platform.
+
 ## Permissions
 
 If you are using google, a SA Account is needed. Also a env variable should be configurated. 
@@ -26,15 +28,12 @@ check [permissions](permissions.md) for more details.
 
 ## Installing cli
 
+Because we will use labmachine on google cloud platform we need to install google dependecies
 
 ```
-pip install labmachine
+pip install labmachine[google]
 ```
-If you want to store the state information of your jupyter in Google Object Storage add:
 
-```
-pip install labmachine[gcs]
-```
 
 ## Init project
 
@@ -99,21 +98,4 @@ jupctl destroy
 ```
 
 This will destroy the vm machine, delete the dns record, and destroy the boot disk but it will keep unteched extra volumes created, usually to be used as `/data` folder inside docker container. 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
