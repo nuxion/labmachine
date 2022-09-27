@@ -18,8 +18,7 @@ from labmachine.jupyter import (DNS_PROVIDERS, VM_PROVIDERS, JupyterController,
                                 JupyterState, clean_state, fetch_state,
                                 push_state)
 from labmachine.types import DNSZone
-from labmachine.utils import get_class, read_toml, write_toml
-
+from labmachine.utils import convert_size, get_class, read_toml, write_toml
 
 console = Console()
 progress = Progress(
@@ -257,10 +256,12 @@ def jupyter_up(volume, container, boot_image, instance_type, network, tags,
             jup.push()
         if wait:
             console.print("=> Lab Machine created")
-            console.print("=> Now we need to wait until the service is avaialable")
-        
+            console.print(
+                "=> Now we need to wait until the service is avaialable")
+
             with progress:
-                task = progress.add_task("Checking readiness of JupyterLab service")
+                task = progress.add_task(
+                    "Checking readiness of JupyterLab service")
                 code = check_readiness(rsp.url, wait_timeout)
 
     if code == 200:
@@ -472,6 +473,36 @@ def push_state(state, from_file):
     _state = JupyterState(**jdata)
     push_state(_state)
     console.print(f"State {from_file} pushed to {_state.self_link}")
+
+
+@cli.command(name="list-containers")
+@click.option("--name", "-n", default=None,
+              help="repo name")
+@click.option("--project", "-p", default=None,
+              help="project of the repo")
+@click.option("--location", "-l", default=None,
+              help="location")
+def list_containers(name, project, location):
+    """ list containers """
+    from labmachine.providers.google.artifacts import Artifacts
+    art = Artifacts()
+
+    containers = art.list_docker_images(
+        repo_name=name, project=project, location=location)
+    # console.print(res)
+    table = Table(title=f"Containers")
+
+    table.add_column("name", justify="left")
+    table.add_column("tags", justify="right")
+    table.add_column("size", justify="right")
+    table.add_column("uri", justify="right")
+    for con in containers:
+        table.add_row(con.name,
+                      ",".join(con.tags),
+                      convert_size(con.image_size_bytes),
+                      con.uri,
+                      )
+    console.print(table)
 
 
 cli.add_command(volumes)
