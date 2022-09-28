@@ -16,7 +16,7 @@ INSTANCE = JupyterInstance(
     volume_data=VOLUME.name,
     boot_image="lab-minimal-010",
     account=os.getenv("SA_ACCOUNT"),
-    roles=["storage-ro"],
+    roles=["cloud-platform"],
     debug=True,
 )
 
