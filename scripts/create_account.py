@@ -83,7 +83,7 @@ def main():
         bind_role_cmd = (f"gcloud projects add-iam-policy-binding {args.project} "
                          f"--member='serviceAccount:{args.name}@{args.project}.iam.gserviceaccount.com' "
                          f"--role={role} "
-                         "--condition=None")
+                         )
         run(bind_role_cmd)
 
 

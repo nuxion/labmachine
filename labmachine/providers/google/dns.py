@@ -8,18 +8,17 @@ from libcloud.dns.base import Record, Zone
 from libcloud.dns.providers import get_driver
 from libcloud.dns.types import Provider, RecordDoesNotExistError
 
-from .common import get_auth_conf
+from .common import GOOGLE_AUTH_ENV, GCConf, get_auth_conf
 
 
 class GoogleDNS(DNSSpec):
     providerid = "gce"
 
-    def __init__(self):
-        conf = get_auth_conf()
+    def __init__(self, keyvar: str = GOOGLE_AUTH_ENV):
+        super().__init__(keyvar=keyvar)
+        conf = get_auth_conf(env_var=keyvar)
         G = get_driver(Provider.GOOGLE)
-        # _env_creds = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-        # if _env_creds:
-        #     conf.credential_file = _env_creds
+
         self._project = conf.PROJECT
         self._account = conf.SERVICE_ACCOUNT
 

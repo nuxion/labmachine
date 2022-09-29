@@ -5,9 +5,18 @@ from .types import (AttachStorage, BlockStorage, DNSRecord, DNSZone,
                     StorageRequest, VMInstance, VMRequest)
 
 
-class ProviderSpec(ABC):
-    """Interface definition of a cloud provider"""
+class ComputeSpec(ABC):
+    """
+    Interface definition of a cloud provider.
+
+    :param providerid: an unique identifier for the provider
+
+    """
     providerid: str
+    keyvar: str
+
+    def __init__(self, keyvar: str):
+        self.keyvar = keyvar
 
     @abstractmethod
     def get_vm(self, vm_name: str, location: Optional[str] = None) \
@@ -64,6 +73,10 @@ class ProviderSpec(ABC):
 
 class DNSSpec(ABC):
     providerid: str
+    keyvar: str
+
+    def __init__(self, keyvar: str):
+        self.keyvar = keyvar
 
     def get_zone(self, zoneid: str):
         pass

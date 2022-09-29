@@ -9,18 +9,26 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, BaseSettings
 
 from labmachine import defaults, utils
-from labmachine.base import DNSSpec, ProviderSpec
+from labmachine.base import ComputeSpec, DNSSpec
 from labmachine.io.kvspec import GenericKVSpec
 from labmachine.types import (AttachStorage, BlockStorage, BootDiskRequest,
                               DNSRecord, DNSZone, GPURequest, InstanceType,
                               Permissions, StorageRequest, VMInstance,
                               VMRequest)
 
-VM_PROVIDERS = {"gce": "labmachine.providers.google.compute.GCEProvider"}
+VM_PROVIDERS = {"gce": "labmachine.providers.google.Compute"}
 DNS_PROVIDERS = {
-    "gce": "labmachine.providers.google.dns.GoogleDNS",
+    "gce": "labmachine.providers.google.GoogleDNS",
     "cloudflare": "labmachine.providers.cloudflare.dns.CloudflareDNS",
 }
+
+
+def _check_dns_env_var():
+    _env = os.getenv(defaults.JUP_DNS_KEY)
+    if _env:
+        return defaults.JUP_DNS_KEY
+    else:
+        return defaults.GOOGLE_AUTH_ENV
 
 
 class JupyterInstance(BaseModel):
@@ -153,7 +161,7 @@ def push_state(state: JupyterState) -> str:
     return fp
 
 
-def find_gce(prov: ProviderSpec, ram: int, cpu: str, gpu="") \
+def find_gce(prov: ComputeSpec, ram: int, cpu: str, gpu="") \
         -> List[InstanceType]:
     sizes = prov.driver.list_sizes(location=prov._location)
     node_types = []
@@ -180,31 +188,33 @@ def find_gce(prov: ProviderSpec, ram: int, cpu: str, gpu="") \
     return node_types
 
 
-def find_node_types(prov: ProviderSpec, ram=2, cpu=2, gpu="") \
+def find_node_types(prov: ComputeSpec, ram=2, cpu=2, gpu="") \
         -> List[InstanceType]:
-    if self.prov.providerid == "gce":
+    if prov.providerid == "gce":
         nodes = find_gce(prov, ram, cpu, gpu)
     return nodes
 
 
 class JupyterController:
 
-    def __init__(self, compute: ProviderSpec,
+    def __init__(self, compute: ComputeSpec,
                  dns: DNSSpec,
                  state: JupyterState
                  ):
-        self.prov = compute
+        self.compute = compute
         self.dns = dns
         self._zone = self.dns.get_zone(state.zone_id)
         self._state: JupyterState = state
 
     @classmethod
-    def init(cls, project,
-             compute_provider,
-             dns_provider,
-             location,
-             dns_id,
-             state_path) -> Union["JupyterController", None]:
+    def init(cls,
+             project: str,
+             compute_provider: str,
+             dns_provider: str,
+             location: str,
+             dns_id: str,
+             state_path: str,
+             ) -> Union["JupyterController", None]:
         if not fetch_state(state_path):
             st = JupyterState(
                 project=project,
@@ -215,14 +225,35 @@ class JupyterController:
                 self_link=state_path,
             )
             fp = push_state(st)
-            jup = cls.from_state(state_path)
+            compute: ComputeSpec = utils.get_class(
+                VM_PROVIDERS[compute_provider])(keyvar=defaults.JUP_COMPUTE_KEY)
+            dns: DNSSpec = utils.get_class(
+                DNS_PROVIDERS[dns_provider])(
+                    keyvar=_check_dns_env_var())
+            jup = cls(compute, dns=dns, state=st)
             return jup
         return None
 
     @classmethod
+    def from_settings(cls, settings_module: str) -> "JupyterController":
+        cfg = load_jupyter_conf(settings_module)
+        state = fetch_state(cfg.STATE_PATH)
+        compute: ComputeSpec = utils.get_class(
+            VM_PROVIDERS[s.compute_provider])(keyvar=defaults.JUP_COMPUTE_KEY)
+        dns: DNSSpec = utils.get_class(
+            DNS_PROVIDERS[s.dns_provider])(keyvar=_check_dns_env_var())
+
+        return cls(
+            compute=compute,
+            dns=dns,
+            state=state
+        )
+
+    @classmethod
     def from_state(cls, path: str) -> "JupyterController":
+        """ it will be deprecated in future releases """
         s = fetch_state(path)
-        compute: ProviderSpec = utils.get_class(
+        compute: ComputeSpec = utils.get_class(
             VM_PROVIDERS[s.compute_provider])()
         dns: DNSSpec = utils.get_class(DNS_PROVIDERS[s.dns_provider])()
         return cls(
@@ -249,27 +280,25 @@ class JupyterController:
 
     def find_node_types(self, ram=2, cpu=2) -> List[InstanceType]:
         if prov.providerid == "gce":
-            nodes = find_gce(self.prov, ram, cpu, gpu)
+            nodes = find_gce(self.compute, ram, cpu, gpu)
         return nodes
 
     def _get_startup_script(self):
         here = os.path.abspath(os.path.dirname(__file__))
-        _file = f"{self.prov.providerid}_startup.sh"
-        # if gpu:
-        #    _file = f"{self.prov.providerid}_startup_gpu.sh"
+        _file = f"{self.compute.providerid}_startup.sh"
         with open(f"{here}/files/{_file}", "r") as f:
             startup = f.read()
         return startup
 
     def import_volume(self, name):
-        _v = self.prov.get_volume(name, location=self.location)
+        _v = self.compute.get_volume(name, location=self.location)
         self._state.volumes[name] = _v
 
     def resize_volume(self, name, size) -> bool:
         vol = self._state.volumes.get(name)
         if vol:
-            res = self.prov.resize_volume(name, size,
-                                          location=self._state.location)
+            res = self.compute.resize_volume(name, size,
+                                             location=self._state.location)
             if res:
                 vol.size = size
                 self._state.volumes[name] = vol
@@ -279,13 +308,13 @@ class JupyterController:
     def destroy_volume(self, name) -> bool:
         vol = self._state.volumes.get(name)
         if vol:
-            res = self.prov.destroy_volume(name, self.location)
+            res = self.compute.destroy_volume(name, self.location)
             del(self._state.volumes[name])
             return res
         return False
 
     def check_volume(self, name) -> bool:
-        vol = self.prov.get_volume(name)
+        vol = self.compute.get_volume(name)
         if vol:
             return True
         return False
@@ -304,29 +333,60 @@ class JupyterController:
             description=description,
             storage_type=storage_type,
         )
-        st = self.prov.create_volume(sr)
+        st = self.compute.create_volume(sr)
         self._state.volumes[name] = st
 
-    def create_lab(self,
-                   container="jupyter/minimal-notebook:python-3.10.6",
-                   uuid="1000",
-                   boot_size="10",
-                   boot_image="debian-11-bullseye-v20220822",
-                   boot_type="pd-standard",
-                   boot_delete=True,
-                   ram=1,
-                   cpu=1,
-                   gpu=None,
-                   registry=None,
-                   network="default",
-                   tags=["http-server", "https-server"],
-                   instance_type=None,
-                   volume_data=None,
-                   lab_timeout=20 * 60,  # in seconds
-                   account: str = None,
-                   roles: List[str] = [],
-                   debug=False
-                   ) -> LabResponse:
+    def create_lab(self, instance: JupyterInstance, *,
+                   volume: Optional[JupyterVolume] = None) \
+            -> LabResponse:
+        """
+        It check for the volumes, create them, create the instance
+        and register the public ip of the instance into the DNS.
+        """
+
+        if volume:
+            if not self.check_volume(volume.name):
+                self.create_volume(volume.name, size=volume.size)
+                self.push()
+        instance = self.create_instance(**instance.dict())
+        record = DNSRecord(
+            name=url,
+            zoneid=self.zone.id,
+            record_type="A",
+            data=[
+                instance.public_ips[0]
+            ]
+        )
+        data = self.dns.create_record(record)
+        record.id = data["id"]
+        self._state.record = record
+
+        return LabResponse(
+            url=url.strip("."),
+            token=token,
+            project=self.prj
+        )
+
+    def create_instance(self,
+                        container="jupyter/minimal-notebook:python-3.10.6",
+                        uuid="1000",
+                        boot_size="10",
+                        boot_image="debian-11-bullseye-v20220822",
+                        boot_type="pd-standard",
+                        boot_delete=True,
+                        ram=1,
+                        cpu=1,
+                        gpu=None,
+                        registry=None,
+                        network="default",
+                        tags=["http-server", "https-server"],
+                        instance_type=None,
+                        volume_data=None,
+                        lab_timeout=20 * 60,  # in seconds
+                        account: str = None,
+                        roles: List[str] = [],
+                        debug=False
+                        ) -> VMInstance:
         if ram and cpu and not instance_type:
             _types = self.find_node_types(ram, cpu)
             if _types:
@@ -344,7 +404,7 @@ class JupyterController:
         self._state.url = url
         to_attach = []
         if volume_data:
-            vol = self.prov.get_volume(volume_data)
+            vol = self.compute.get_volume(volume_data)
             if vol:
                 to_attach = [
                     AttachStorage(
@@ -369,7 +429,7 @@ class JupyterController:
             instance_type=node_type,
             startup_script=self._get_startup_script(),
             location=self.location,
-            provider=self.prov.providerid,
+            provider=self.compute.providerid,
             boot=BootDiskRequest(
                 image=boot_image,
                 size=boot_size,
@@ -397,30 +457,14 @@ class JupyterController:
             external_ip="ephemeral",
             labels={"project": self.prj},
         )
-        instance = self.prov.create_vm(vm)
+        instance = self.compute.create_vm(vm)
         self._state.vm = instance
-
-        record = DNSRecord(
-            name=url,
-            zoneid=self.zone.id,
-            record_type="A",
-            data=[
-                instance.public_ips[0]
-            ]
-        )
-        data = self.dns.create_record(record)
-        record.id = data["id"]
-        self._state.record = record
-        return LabResponse(
-            url=url.strip("."),
-            token=token,
-            project=self.prj
-        )
+        return instance
 
     def destroy_lab(self):
         if self._state.vm:
-            self.prov.destroy_vm(vm=self._state.vm.vm_name,
-                                 location=self._state.vm.location)
+            self.compute.destroy_vm(vm=self._state.vm.vm_name,
+                                    location=self._state.vm.location)
             self._state.vm = None
         if self._state.record:
             self.dns.delete_record(self.zone.id, self._state.record.id)
@@ -433,7 +477,7 @@ class JupyterController:
         return fp
 
     def fetch(self, console=None):
-        vms = self.prov.list_vms()
+        vms = self.compute.list_vms()
         vm_set = False
         for vm in vms:
             prj = vm.labels.get("project")
@@ -462,7 +506,7 @@ class JupyterController:
                     break
         volumes = {}
         for _vol in self._state.volumes.keys():
-            vol = self.prov.get_volume(_vol)
+            vol = self.compute.get_volume(_vol)
             if vol:
                 volumes[_vol] = vol
         self._state.volumes = volumes

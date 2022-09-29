@@ -6,7 +6,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from labmachine.base import ProviderSpec
+from labmachine.base import ComputeSpec
 from labmachine.types import (AttachStorage, BlockStorage, StorageRequest,
                               VMInstance, VMRequest)
 from labmachine.utils import generate_random
@@ -15,18 +15,19 @@ from libcloud.compute.base import Node, NodeLocation
 from libcloud.compute.providers import get_driver
 from libcloud.compute.types import Provider
 
-from .common import get_auth_conf
+from .common import GOOGLE_AUTH_ENV, get_auth_conf
 
 
 def generic_zone(name, driver) -> NodeLocation:
     return NodeLocation(id=None, name=name, country=None, driver=driver)
 
 
-class GCEProvider(ProviderSpec):
+class Compute(ComputeSpec):
     providerid = "gce"
 
-    def __init__(self):
-        conf = get_auth_conf()
+    def __init__(self, keyvar: str = GOOGLE_AUTH_ENV):
+        super().__init__(keyvar=keyvar)
+        conf = get_auth_conf(env_var=self.keyvar)
         G = get_driver(Provider.GCE)
         # _env_creds = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
         # if _env_creds:
@@ -34,6 +35,7 @@ class GCEProvider(ProviderSpec):
         self._project = conf.PROJECT
         self._location = conf.LOCATION
         self._account = conf.SERVICE_ACCOUNT
+        self._conf = conf
 
         self.driver = G(
             conf.SERVICE_ACCOUNT,

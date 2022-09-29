@@ -89,7 +89,7 @@ def init(project, compute_provider, dns_provider, location, dns_id, state):
             console.print("[red]It seems that this project already exist.[/]")
             console.print("Try with the fetch command instead.")
         else:
-            console.print(f"=> Congrats! 🎉 [green]Lab data initialized[/]")
+            console.print(f"=> :smile_cat: Congrats! [green]Lab data initialized[/]")
             save_state(state)
 
 
@@ -232,6 +232,7 @@ def jupyter_up(volume, container, boot_image, instance_type, network, tags,
     if from_module:
         with progress:
             task = progress.add_task("Starting lab creation")
+            jup = JupyterController.from_settings(from_module)
             rsp = shortcuts.lab_from_module(from_module)
     else:
         _state = state if state else load_state()
@@ -503,6 +504,7 @@ def list_containers(name, project, location):
                       con.uri,
                       )
     console.print(table)
+
 
 
 cli.add_command(volumes)
