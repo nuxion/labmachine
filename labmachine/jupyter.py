@@ -96,7 +96,7 @@ class LabResponse(BaseModel):
     url: str
 
 
-def load_jupyter_conf(settings_module) -> JupyterConfig:
+def load_conf_module(settings_module) -> JupyterConfig:
     mod = import_module(settings_module)
 
     settings_dict = {}
@@ -215,6 +215,7 @@ class JupyterController:
              dns_id: str,
              state_path: str,
              ) -> Union["JupyterController", None]:
+        """ it will be deprecated in future releases """
         if not fetch_state(state_path):
             st = JupyterState(
                 project=project,
@@ -234,28 +235,31 @@ class JupyterController:
             return jup
         return None
 
-    @classmethod
-    def from_settings(cls, settings_module: str) -> "JupyterController":
-        cfg = load_jupyter_conf(settings_module)
-        state = fetch_state(cfg.STATE_PATH)
-        compute: ComputeSpec = utils.get_class(
-            VM_PROVIDERS[s.compute_provider])(keyvar=defaults.JUP_COMPUTE_KEY)
-        dns: DNSSpec = utils.get_class(
-            DNS_PROVIDERS[s.dns_provider])(keyvar=_check_dns_env_var())
+    # @classmethod
+    # def from_settings(cls, settings_module: str) -> "JupyterController":
+    #     cfg = load_jupyter_conf(settings_module)
+    #     state = fetch_state(cfg.STATE_PATH)
+    #     compute: ComputeSpec = utils.get_class(
+    #         VM_PROVIDERS[state.compute_provider])(keyvar=defaults.JUP_COMPUTE_KEY)
+    #     dns: DNSSpec = utils.get_class(
+    #         DNS_PROVIDERS[state.dns_provider])(keyvar=_check_dns_env_var())
 
-        return cls(
-            compute=compute,
-            dns=dns,
-            state=state
-        )
+    #     return cls(
+    #         compute=compute,
+    #         dns=dns,
+    #         state=state
+    #     )
 
     @classmethod
     def from_state(cls, path: str) -> "JupyterController":
-        """ it will be deprecated in future releases """
+        """ It will be deprecated in future releases"""
         s = fetch_state(path)
         compute: ComputeSpec = utils.get_class(
-            VM_PROVIDERS[s.compute_provider])()
-        dns: DNSSpec = utils.get_class(DNS_PROVIDERS[s.dns_provider])()
+            VM_PROVIDERS[s.compute_provider])(
+                keyvar=defaults.JUP_COMPUTE_KEY
+        )
+        dns: DNSSpec = utils.get_class(DNS_PROVIDERS[s.dns_provider])(
+            keyvar=defaults.JUP_COMPUTE_KEY)
         return cls(
             compute=compute,
             dns=dns,
@@ -274,7 +278,11 @@ class JupyterController:
     def prj(self) -> str:
         return self._state.project
 
-    def build_url(self, vm_name) -> str:
+    @property
+    def url(self) -> str:
+        return self._state.url
+
+    def _build_url(self, vm_name) -> str:
         url = f"{vm_name}.{self.prj}.{self.zone.domain}"
         return url
 
@@ -344,17 +352,18 @@ class JupyterController:
         and register the public ip of the instance into the DNS.
         """
 
+        token = secrets.token_urlsafe(16)
         if volume:
             if not self.check_volume(volume.name):
                 self.create_volume(volume.name, size=volume.size)
                 self.push()
-        instance = self.create_instance(**instance.dict())
+        vm = self.create_instance(**instance.dict(), token=token)
         record = DNSRecord(
-            name=url,
+            name=self.url,
             zoneid=self.zone.id,
             record_type="A",
             data=[
-                instance.public_ips[0]
+                vm.public_ips[0]
             ]
         )
         data = self.dns.create_record(record)
@@ -362,10 +371,22 @@ class JupyterController:
         self._state.record = record
 
         return LabResponse(
-            url=url.strip("."),
+            url=self.url.strip("."),
             token=token,
             project=self.prj
         )
+
+    def _generate_url(self) -> str:
+        """ it generates a random vm name and creates the url without protocol:
+            lab-<random_string>.<project>.<dns_domain>
+        """
+        _name = utils.generate_random(
+            size=5, alphabet=defaults.NANO_MACHINE_ALPHABET)
+        vm_name = f"lab-{_name}"
+
+        url = f"{vm_name}.{self.prj}.{self.zone.domain}"
+
+        return url
 
     def create_instance(self,
                         container="jupyter/minimal-notebook:python-3.10.6",
@@ -385,7 +406,8 @@ class JupyterController:
                         lab_timeout=20 * 60,  # in seconds
                         account: str = None,
                         roles: List[str] = [],
-                        debug=False
+                        debug=False,
+                        token=None,
                         ) -> VMInstance:
         if ram and cpu and not instance_type:
             _types = self.find_node_types(ram, cpu)
@@ -394,14 +416,7 @@ class JupyterController:
         else:
             node_type = instance_type
 
-        token = secrets.token_urlsafe(16)
-        _name = utils.generate_random(
-            size=5, alphabet=defaults.NANO_MACHINE_ALPHABET)
 
-        vm_name = f"lab-{_name}"
-        zone = self.zone
-        url = self.build_url(vm_name)
-        self._state.url = url
         to_attach = []
         if volume_data:
             vol = self.compute.get_volume(volume_data)
@@ -424,6 +439,10 @@ class JupyterController:
         if account:
             scopes = Permissions(account=account, roles=roles)
 
+        url = self._generate_url()
+        self._state.url = url
+        vm_name = url.split(".")[0]
+
         vm = VMRequest(
             name=vm_name,
             instance_type=node_type,
@@ -437,7 +456,7 @@ class JupyterController:
                 auto_delete=boot_delete,
             ),
             metadata={
-                "labdomain": f"{self.prj}.{zone.domain}".strip("."),
+                "labdomain": f"{self.prj}.{self.zone.domain}".strip("."),
                 "laburl": url.strip("."),
                 "labimage": container,
                 "labtoken": token,
@@ -516,3 +535,62 @@ class JupyterController:
 
     def clean(self):
         clean_state(self._state.self_link)
+
+
+def save_conf(state_path, conf_path=defaults.JUPCTL_CONF):
+    utils.write_toml(conf_path, {"state": state_path})
+
+
+def _load_state_path(conf_path=defaults.JUPCTL_CONF) -> str:
+    data = utils.read_toml(conf_path)
+    return data.get("state")
+
+
+def from_state(path: str) -> JupyterController:
+    """ It creates JupyterController from the state """
+    s = fetch_state(path)
+    compute: ComputeSpec = utils.get_class(
+        VM_PROVIDERS[s.compute_provider])(
+            keyvar=defaults.JUP_COMPUTE_KEY
+    )
+    dns: DNSSpec = utils.get_class(DNS_PROVIDERS[s.dns_provider])(
+        keyvar=defaults.JUP_COMPUTE_KEY)
+    return JupyterController(
+        compute=compute,
+        dns=dns,
+        state=s
+    )
+
+
+def from_conf(conf_path: str = defaults.JUPCTL_CONF) -> JupyterController:
+    _state = _load_state_path(conf_path)
+    jup = from_state(_state)
+    return jup
+
+
+def init(project: str,
+         compute_provider: str,
+         dns_provider: str,
+         location: str,
+         dns_id: str,
+         state_path: str,
+         ) -> Union[JupyterController, None]:
+    """ it will be deprecated in future releases """
+    if not fetch_state(state_path):
+        st = JupyterState(
+            project=project,
+            compute_provider=compute_provider,
+            dns_provider=dns_provider,
+            location=location,
+            zone_id=dns_id,
+            self_link=state_path,
+        )
+        fp = push_state(st)
+        compute: ComputeSpec = utils.get_class(
+            VM_PROVIDERS[compute_provider])(keyvar=defaults.JUP_COMPUTE_KEY)
+        dns: DNSSpec = utils.get_class(
+            DNS_PROVIDERS[dns_provider])(
+                keyvar=_check_dns_env_var())
+        jup = JupyterController(compute, dns=dns, state=st)
+        return jup
+    return None

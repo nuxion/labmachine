@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from google.cloud import artifactregistry_v1
 
-from .common import get_auth_conf
+from .common import GOOGLE_AUTH_ENV, get_auth_conf
 
 
 class Repository(BaseModel):
@@ -25,12 +25,12 @@ class Artifacts:
 
     providerid = "gce"
 
-    def __init__(self):
+    def __init__(self, keyvar=GOOGLE_AUTH_ENV):
         """ 
         GOOGLE_APPLICATION_CREDENTIALS must be set.
 
         """
-        self._conf = get_auth_conf()
+        self._conf = get_auth_conf(GOOGLE_AUTH_ENV)
         self.driver = artifactregistry_v1.ArtifactRegistryClient()
 
     def list_respositories(self, project=None, location=None) -> List[Repository]:
