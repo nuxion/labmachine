@@ -13,12 +13,9 @@ from rich.progress import Progress, SpinnerColumn
 from rich.prompt import Confirm
 from rich.table import Table
 
-from labmachine import defaults, shortcuts
-from labmachine.jupyter import (DNS_PROVIDERS, VM_PROVIDERS, JupyterController,
-                                JupyterState, clean_state, fetch_state,
-                                push_state)
+from labmachine import defaults, jupyter, shortcuts
 from labmachine.types import DNSZone
-from labmachine.utils import convert_size, get_class, read_toml, write_toml
+from labmachine.utils import convert_size, get_class
 
 console = Console()
 progress = Progress(
@@ -27,13 +24,12 @@ progress = Progress(
 )
 
 
-def save_state(state):
-    write_toml(defaults.JUPCTL_CONF, {"state": state})
-
-
-def load_state() -> str:
-    data = read_toml(defaults.JUPCTL_CONF)
-    return data.get("state")
+def _load_jupyter(state_path=None) -> jupyter.JupyterController:
+    if state_path:
+        jup = jupyter.from_state(state_path)
+    else:
+        jup = jupyter.from_conf()
+    return jup
 
 
 def check_readiness(url: str, timeout: int = 10 * 60):
@@ -83,14 +79,15 @@ def init(project, compute_provider, dns_provider, location, dns_id, state):
         console.print(
             f"[red]A {defaults.JUPCTL_CONF} already exist in the project[/]")
     else:
-        jup = JupyterController.init(
+        jup = jupyter.init(
             project, compute_provider, dns_provider, location, dns_id, state)
         if not jup:
             console.print("[red]It seems that this project already exist.[/]")
             console.print("Try with the fetch command instead.")
         else:
-            console.print(f"=> :smile_cat: Congrats! [green]Lab data initialized[/]")
-            save_state(state)
+            console.print(
+                f":smile_cat: Congratulations! [green]Lab data initialized[/]")
+            jupypter.save_conf(state)
 
 
 @cli.command(name="list-locations")
@@ -100,7 +97,7 @@ def init(project, compute_provider, dns_provider, location, dns_id, state):
               help="filter by country")
 def list_locs(compute_provider, filter_country):
     """ List locations related to a compute provider """
-    driver = get_class(VM_PROVIDERS[compute_provider])()
+    driver = get_class(jupyter.VM_PROVIDERS[compute_provider])()
     locs = driver.driver.list_locations()
     table = Table(title=f"{compute_provider}'s locations")
 
@@ -124,7 +121,7 @@ def list_locs(compute_provider, filter_country):
               help="by location")
 def list_vm_types(compute_provider, location):
     """ List vm types """
-    driver = get_class(VM_PROVIDERS[compute_provider])()
+    driver = get_class(jupyter.VM_PROVIDERS[compute_provider])()
 
     types = driver.driver.list_sizes(location=location)
     table = Table(title=f"{compute_provider}'s vm types")
@@ -145,7 +142,7 @@ def list_vm_types(compute_provider, location):
               help="Provider to be used for vm creation")
 def list_images(compute_provider):
     """ List images to be used as boot disk"""
-    driver = get_class(VM_PROVIDERS[compute_provider])()
+    driver = get_class(jupyter.VM_PROVIDERS[compute_provider])()
 
     images = driver.driver.list_images()
     table = Table(title=f"{compute_provider}'s images")
@@ -162,7 +159,7 @@ def list_images(compute_provider):
               help="Provider to be used for dns")
 def list_dns(dns_provider):
     """ List DNS available by provider """
-    driver = get_class(DNS_PROVIDERS[dns_provider])()
+    driver = get_class(jupyter.DNS_PROVIDERS[dns_provider])()
     zones = driver.list_zones()
     table = Table(title=f"DNS zones")
 
@@ -186,93 +183,53 @@ def list_provs(kind):
     table.add_column("kind", justify="right")
 
     if kind == "dns":
-        for key in DNS_PROVIDERS.keys():
+        for key in jupyter.DNS_PROVIDERS.keys():
             table.add_row(key, "dns")
 
     elif kind == "compute":
-        for key in VM_PROVIDERS.keys():
+        for key in jupyter.VM_PROVIDERS.keys():
             table.add_row(key, "compute")
     elif kind == "all":
-        for key in VM_PROVIDERS.keys():
+        for key in jupyter.VM_PROVIDERS.keys():
             table.add_row(key, "compute")
-        for key in DNS_PROVIDERS.keys():
+        for key in jupyter.DNS_PROVIDERS.keys():
             table.add_row(key, "dns")
 
     console.print(table)
 
 
 @cli.command(name="up")
-@click.option("--volume", "-v", default=None, help="Volume name to use")
-@click.option("--container", "-c",
-              default="jupyter/minimal-notebook:python-3.10.6",
-              help="Container to be used")
-@click.option("--boot-image", "-b", default="debian-11-bullseye-v20220822",
-              help="Boot image")
-@click.option("--instance-type", "-T", default="",
-              help="Instance type")
-@click.option("--network", "-n", default="default",
-              help="network")
-@click.option("--registry", "-r", default=None,
-              help="Registry to be used")
-@click.option("--tags", "-t", default="http-server,https-server",
-              help="Tags to be used")
-@click.option("--timeout", default=20,
-              help="Timeout in minutes")
 @click.option("--state", "-s", default=None, help="Where state will be stored")
-@click.option("--from-module", "-f", default=None, help="Create lab from module")
-@click.option("--debug", "-d", default=False, is_flag=True, help="flag debug")
-@click.option("--wait", "-w", is_flag=True, default=False,
-              help="Wait until service is ready")
-@click.option("--wait-timeout", default=10 * 60, help="Waiting timeout (in seconds)")
-def jupyter_up(volume, container, boot_image, instance_type, network, tags,
-               timeout, state, debug, wait, wait_timeout, registry, from_module):
+@click.option("--from-module", "-f", default=None, required=True, help="Create lab from module")
+# @click.option("--debug", "-d", default=False, is_flag=True, help="flag debug")
+@click.option("--wait-timeout", default=None, help="Waiting timeout (in seconds)")
+def jupyter_up(state, from_module, wait_timeout):
     """ Create a VM instance for jupyter """
-    code = 200
+    jup = _load_jupyter(state)
 
-    if from_module:
-        with progress:
-            task = progress.add_task("Starting lab creation")
-            jup = JupyterController.from_settings(from_module)
-            rsp = shortcuts.lab_from_module(from_module)
-    else:
-        _state = state if state else load_state()
-        jup = JupyterController.from_state(_state)
-        if volume:
-            console.print("=> Checking if volume exist")
-            if not jup.check_volume(volume):
-                console.print(
-                    f"=> [orange]Warning: volume {volume} doesn't exist")
-            # jup.create_volume(volume, size=volume_size)
-        with progress:
-            task = progress.add_task("Starting lab creation")
-            rsp = jup.create_lab(
-                container=container,
-                boot_image=boot_image,
-                instance_type=instance_type,
-                volume_data=volume,
-                network=network,
-                tags=tags.split(","),
-                debug=debug,
-            )
-            jup.push()
-        if wait:
-            console.print("=> Lab Machine created")
-            console.print(
-                "=> Now we need to wait until the service is avaialable")
-
-            with progress:
-                task = progress.add_task(
-                    "Checking readiness of JupyterLab service")
-                code = check_readiness(rsp.url, wait_timeout)
-
-    if code == 200:
-        console.print("=> Congrats! Lab is running now")
-        console.print("Go to: ")
-        console.print(f"\t [magenta]https://{rsp.url}[/]")
-        console.print(f"\t Token: [red]{rsp.token}[/]")
-    else:
+    with progress:
+        task = progress.add_task("Starting lab creation")
+        cfg = jupyter.load_conf_module(from_module)
+        rsp = jup.create_lab(cfg.INSTANCE, volume=cfg.VOLUME)
+        jup.push()
+    console.print("=> [green]Lab created[/]")
+    console.print("Go to: ")
+    console.print(f"\t [magenta]https://{rsp.url}[/]")
+    console.print(f"\t Token: [red]{rsp.token}[/]")
+    if wait_timeout:
         console.print(
-            f"[orange] {rsp.url} still not available, code {code}[/]")
+            "=> Now we need to wait until the service is avaialable")
+        code = -1
+        with progress:
+            task = progress.add_task(
+                "Checking readiness of JupyterLab service")
+            code = check_readiness(rsp.url, wait_timeout)
+
+        if code == 200:
+            console.print("=> [green]Congratulations Lab is ready[/]")
+        else:
+            console.print(
+                f"[orange] {rsp.url} still not available, code {code}[/]")
 
 
 @cli.command(name="fetch")
@@ -282,8 +239,7 @@ def jupyter_up(volume, container, boot_image, instance_type, network, tags,
               help="Path to record state")
 def fetch(state, output):
     """ fetch new objects from the provider """
-    _state = state if state else load_state()
-    jup = JupyterController.from_state(_state)
+    jup = _load_jupyter(state)
     with progress:
         task1 = progress.add_task("Fetching new objects from cloud")
         _dict = jup.fetch(console)
@@ -296,11 +252,10 @@ def fetch(state, output):
 
 @cli.command(name="destroy")
 @click.option("--state", "-s", default=None,
-              help="Where state will be stored")
+              help="Where state lives")
 def destroy(state):
     """It will destroy a lab """
-    _state = state if state else load_state()
-    jup = JupyterController.from_state(_state)
+    jup = _load_jupyter(state)
     with progress:
         task1 = progress.add_task(
             f"[red]Destroying jupyter {jup._state.url}[/]")
@@ -316,8 +271,7 @@ def destroy(state):
               help="Where state will be stored")
 def volume_create(state, size, name, kind):
     """ create a volume """
-    _state = state if state else load_state()
-    jup = JupyterController.from_state(_state)
+    jup = _load_jupyter(state)
     if not jup.check_volume(name):
         console.print("=> Creating new volume")
         jup.create_volume(name, size=size, storage_type=kind)
@@ -334,8 +288,7 @@ def volume_create(state, size, name, kind):
               help="Get all volumes")
 def volume_list(state, get_all):
     """ list volumes """
-    _state = state if state else load_state()
-    jup = JupyterController.from_state(_state)
+    jup = _load_jupyter(state)
     if get_all:
         vols = jup.prov.list_volumes()
     else:
@@ -361,8 +314,7 @@ def volume_list(state, get_all):
               help="Name of the volume")
 def volume_import(state, name):
     """ import a disk from the provider into jupyter """
-    _state = state if state else load_state()
-    jup = JupyterController.from_state(_state)
+    jup = _load_jupyter(state)
     jup.import_volume(name)
     jup.push()
     console.print(f"Volume {name} imported.")
@@ -375,8 +327,7 @@ def volume_import(state, name):
               help="Name of the volume")
 def volume_unlink(state, name):
     """ unlink a volume from this project """
-    _state = state if state else load_state()
-    jup = JupyterController.from_state(_state)
+    jup = _load_jupyter(state)
     if jup._state.volumes.get(name):
         del(jup._state.volumes[name])
         jup.push()
@@ -392,8 +343,7 @@ def volume_unlink(state, name):
               help="New size of the volume")
 def volume_resize(state, name, size):
     """ resize a volume """
-    _state = state if state else load_state()
-    jup = JupyterController.from_state(_state)
+    jup = _load_jupyter(state)
     res = jup.resize_volume(name, size)
     if res:
         jup.push()
@@ -409,8 +359,7 @@ def volume_resize(state, name, size):
               help="Name of the volume")
 def volume_destroy(state, name):
     """ resize a volume """
-    _state = state if state else load_state()
-    jup = JupyterController.from_state(_state)
+    jup = _load_jupyter(state)
     _confirm = Confirm.ask(f"Do you want to destroy {name} volume?")
     if _confirm:
         res = jup.destroy_volume(name)
@@ -426,7 +375,7 @@ def volume_destroy(state, name):
               help="Where state will be stored")
 def clean_state_cmd(state):
     """ Will remove the state file """
-    _state = state if state else load_state()
+    jup = _load_jupyter(state)
     _confirm = Confirm.ask(f"Do you want to remove the state from {_state}?")
     if _confirm:
         clean_state(_state)
@@ -456,8 +405,7 @@ def wait_for_jupyter(timeout, url):
               help="Path to record state")
 def show_state(state, output):
     """ Shows state """
-    _state = state if state else load_state()
-    jup = JupyterController.from_state(_state)
+    jup = _load_jupyter(state)
     console.print_json(data=jup._state.dict())
     if output:
         with open(output, "w") as f:
@@ -467,7 +415,7 @@ def show_state(state, output):
 @cli.command(name="push")
 @click.option("--from-file", "-f", default="state.json",
               help="Path to record state")
-def push_state(state, from_file):
+def push_state_cli(state, from_file):
     """ Push state """
     with open(from_file, "w") as f:
         jdata = json.loads(f.read())
@@ -486,7 +434,7 @@ def push_state(state, from_file):
 def list_containers(name, project, location):
     """ list containers """
     from labmachine.providers.google.artifacts import Artifacts
-    art = Artifacts()
+    art = Artifacts(keyvar=defaults.JUP_COMPUTE_KEY)
 
     containers = art.list_docker_images(
         repo_name=name, project=project, location=location)
@@ -504,7 +452,6 @@ def list_containers(name, project, location):
                       con.uri,
                       )
     console.print(table)
-
 
 
 cli.add_command(volumes)
