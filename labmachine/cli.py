@@ -87,7 +87,7 @@ def init(project, compute_provider, dns_provider, location, dns_id, state):
         else:
             console.print(
                 f":smile_cat: Congratulations! [green]Lab data initialized[/]")
-            jupypter.save_conf(state)
+            jupyter.save_conf(state)
 
 
 @cli.command(name="list-locations")
@@ -203,7 +203,7 @@ def list_provs(kind):
 @click.option("--from-module", "-f", default=None, required=True, help="Create lab from module")
 # @click.option("--debug", "-d", default=False, is_flag=True, help="flag debug")
 @click.option("--wait-timeout", default=None, help="Waiting timeout (in seconds)")
-def jupyter_up(state, from_module, wait_timeout):
+def lab_up(state, from_module, wait_timeout):
     """ Create a VM instance for jupyter """
     jup = _load_jupyter(state)
 
@@ -223,7 +223,7 @@ def jupyter_up(state, from_module, wait_timeout):
         with progress:
             task = progress.add_task(
                 "Checking readiness of JupyterLab service")
-            code = check_readiness(rsp.url, wait_timeout)
+            code = check_readiness(rsp.url, int(wait_timeout))
 
         if code == 200:
             console.print("=> [green]Congratulations Lab is ready[/]")
