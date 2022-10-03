@@ -358,7 +358,7 @@ def volume_resize(state, name, size):
 @click.option("--name", "-n", required=True,
               help="Name of the volume")
 def volume_destroy(state, name):
-    """ resize a volume """
+    """ destroy a volume """
     jup = _load_jupyter(state)
     _confirm = Confirm.ask(f"Do you want to destroy {name} volume?")
     if _confirm:

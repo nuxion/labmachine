@@ -4,11 +4,12 @@ from datetime import datetime, timedelta
 from typing import Any, AsyncGenerator, Dict, Generator, List, Union
 
 from google.cloud.storage import Client
+from labmachine.utils import run_async
 from smart_open import open
 
-from labmachine.utils import run_async
-
 from .kvspec import AsyncKVSpec, GenericKVSpec
+
+_GOOGLE = "GOOGLE_APPLICATION_CREDENTIALS"
 
 
 class KVGS(GenericKVSpec):
@@ -17,7 +18,7 @@ class KVGS(GenericKVSpec):
     def __init__(self, bucket: str, client_opts: Dict[str, Any] = {}):
         self._opts = client_opts
         self._bucket = bucket
-        service_account_path = os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
+        service_account_path = client_opts.get("creds", os.environ[_GOOGLE])
         self.client = Client.from_service_account_json(service_account_path)
         self.bucket = self.client.get_bucket(bucket)
         self.params = {"client": self.client}

@@ -3,6 +3,18 @@ from typing import Any, AsyncGenerator, Dict, Generator, List, Union
 
 from labmachine.utils import get_class
 
+KIND = {
+    "high": {"google": "STANDARD"},
+    "medium": {"google": "NEARLINE"},
+    "low": {"google": "COLDLINE"},
+    "archive": {"google": "ARCHIVE"}
+}
+
+REGIONS = {
+    "us-east1": {"google": "US-EAST1", "amazon": "us-east-2"},
+    
+}
+
 
 class KeyReadError(Exception):
     def __init__(self, bucket, key, error_msg):

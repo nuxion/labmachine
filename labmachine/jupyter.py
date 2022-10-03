@@ -115,7 +115,8 @@ def fetch_state(path) -> Union[JupyterState, None]:
     if path.startswith("gs://"):
         GS: GenericKVSpec = utils.get_class("labmachine.io.kv_gcs.KVGS")
         _parsed = urlparse(path)
-        gs = GS(_parsed.netloc)
+        gs = GS(_parsed.netloc, client_opts={
+            "creds": os.getenv(defaults.JUP_COMPUTE_KEY)})
         data = gs.get(f"{_parsed.path[1:]}")
         if data:
             data = data.decode("utf-8")
@@ -149,7 +150,9 @@ def push_state(state: JupyterState) -> str:
         GS: GenericKVSpec = utils.get_class(
             "labmachine.io.kv_gcs.KVGS")
         _parsed = urlparse(state.self_link)
-        gs = GS(_parsed.netloc)
+        gs = GS(_parsed.netloc, client_opts={
+            "creds": os.getenv(defaults.JUP_COMPUTE_KEY)
+        })
         _fp = f"{_parsed.path[1:]}"
         gs.put(_fp, jd.encode())
         fp = state.self_link
