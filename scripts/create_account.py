@@ -76,9 +76,11 @@ def main():
     res = run(sa_check_cmd)
     if res.stdout.decode().strip() != "[]":
         print(f"SA Account {args.name} already exist")
-        sys.exit(-1)
+    else:
+        print(f"Creating SA Account {args.name}")
+        run(create_cmd)
 
-    run(create_cmd)
+    print(f"Assigning roles to {args.name}")
     for role in FULL_ROLES:
         bind_role_cmd = (f"gcloud projects add-iam-policy-binding {args.project} "
                          f"--member='serviceAccount:{args.name}@{args.project}.iam.gserviceaccount.com' "
