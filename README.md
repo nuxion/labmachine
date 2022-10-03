@@ -31,6 +31,7 @@ Lab files are abstractions built over this library for jupyter lab provisioning.
 
 - [Quickstart](docs/quickstart.md)
 - [Permissions](docs/permissions.md)
+- [Volumes](docs/volumes.md)
 
 
 ## Next work

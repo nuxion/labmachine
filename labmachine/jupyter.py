@@ -28,7 +28,7 @@ def _check_dns_env_var():
     if _env:
         return defaults.JUP_DNS_KEY
     else:
-        return defaults.GOOGLE_AUTH_ENV
+        return defaults.JUP_COMPUTE_KEY
 
 
 class JupyterInstance(BaseModel):
@@ -416,7 +416,6 @@ class JupyterController:
         else:
             node_type = instance_type
 
-
         to_attach = []
         if volume_data:
             vol = self.compute.get_volume(volume_data)
@@ -554,7 +553,7 @@ def from_state(path: str) -> JupyterController:
             keyvar=defaults.JUP_COMPUTE_KEY
     )
     dns: DNSSpec = utils.get_class(DNS_PROVIDERS[s.dns_provider])(
-        keyvar=defaults.JUP_COMPUTE_KEY)
+        keyvar=_check_dns_env_var())
     return JupyterController(
         compute=compute,
         dns=dns,

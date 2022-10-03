@@ -2,17 +2,35 @@
 
 This quickstart works on google cloud platform.
 
-## Permissions
 
-If you are using google, a SA Account is needed. Also a env variable should be configurated. 
+## Requirements
 
-A helper script is provided for the key creation of SA account:
+if you are starting a new project from google cloud, some resources should exists before a Jupyter Lab machine could be created. 
 
+1. Firts of all a public DNS Zone must exist.
+2. A SA Account is needed with the right permissions. 
+3. Firewall rules for http and https traffic, in this example we use the tag `http-server` for the firewall rule. 
+4. A bucket accesible for the SA account created in the step 2 must exist. 
+
+For steps 2,3 and 4 we have a helper script:
+
+```
+python3 scripts/google_setup.py --name <SA_ACCOUNT> --project <PROJECT_ID> --bucket <BUCKET_NAME>
+```
+
+After this you will will need to create and export the key of the <SA_ACCOUNT> to your local machine, for that do the following:
 ```
 ./scripts/gce_auth_key.sh <ACCOUNT>@<PROJECT_ID>.iam.gserviceaccount.com
-mv gce.json ${HOME}/.ssh/gce.json
-export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/.ssh/gce.json
+mv .secrets/gce.json ${HOME}/.ssh/gce.json
 ```
+
+Finally you will need to setup the credentials:
+```
+export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/.ssh/gce.json
+export JUP_COMPUTE_KEY=${HOME}/.ssh/gce.json
+```
+
+Note: `JUP_COMPUTE_KEY` is used by labmachine for authentication against cloud provider. In the case of Google, instead of `GOOGLE_APPLICATION_CREDENTIALS` env var, JUP_COMPUTE_KEY is used. This change is because some use cases may need to decouple DNS provisioning from Compute Provisioning in different accounts. 
 
 Run `gcloud iam service-accounts list` to see SA availables in your project. 
 

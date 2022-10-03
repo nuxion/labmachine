@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "labmachine"
-version = "0.4.0"
+version = "0.4.1"
 description = "A simple creator of machines with Jupyterlab"
 authors = ["nuxion <nuxion@gmail.com>"]
 license = "Apache-2.0"
