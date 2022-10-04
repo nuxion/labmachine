@@ -24,17 +24,20 @@ class GCConf(BaseSettings):
         env_prefix = "GCE_"
 
 
-def get_auth_conf(env_var=GOOGLE_AUTH_ENV) -> GCConf:
+def get_auth_conf(env_var=GOOGLE_AUTH_ENV, filepath=None) -> GCConf:
     """
     https://googleapis.dev/python/google-api-core/latest/auth.html#authentication
     """
-    creds_env = os.environ.get(env_var)
-    if creds_env:
-        with open(creds_env, "r") as f:
+    if filepath:
+        creds_path = filepath
+    else:
+        creds_path = os.environ.get(env_var)
+    if creds_path:
+        with open(creds_path, "r") as f:
             data = json.loads(f.read())
             acc = data["client_email"]
             prj = data["project_id"]
-        conf = GCConf(CREDENTIALS=creds_env,
+        conf = GCConf(CREDENTIALS=creds_path,
                       PROJECT=prj,
                       SERVICE_ACCOUNT=acc)
     else:

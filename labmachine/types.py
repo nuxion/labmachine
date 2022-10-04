@@ -1,4 +1,6 @@
 from binascii import crc32
+from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List, NewType, Optional, Set, Tuple, Union
 
 from pydantic import BaseModel, BaseSettings
@@ -205,3 +207,85 @@ class VMRequest(BaseModel):
     labels: Dict[str, Any] = {}
     tags: Optional[List[str]] = None
     extra: Optional[ExtraField] = None
+
+
+class StorageClasses(Enum):
+    STANDARD = 0
+    MEDIUM = 1
+    LOW = 2
+    ARCHIVE = 3
+    GLOBAL = 4
+
+
+class BucketLocation(Enum):
+    US = -1
+    ASIA = -2
+    EU = -3
+    US_CENTRAL1 = 0
+    US_EAST1 = 1
+    US_EAST2 = 2
+    US_EAST3 = 3
+    US_SOUTH1 = 4
+    US_WEST1 = 5
+    US_WEST2 = 6
+    US_WEST3 = 7
+    SOUTHAMERICA_EAST1 = 8
+    SOUTHAMERICA_WEST1 = 9
+    EUROPE_CENTRAL1 = 10
+    EUROPE_NORTH1 = 11
+    EUROPE_WEST1 = 12
+    EUROPE_WEST4 = 12
+    ASIA_EAST1 = 13
+    ASIA_EAST2 = 14
+    ASIA_NORTHEAST1 = 15
+    ASIA_SOUTH1 = 16
+
+
+class Blob(BaseModel):
+    id: str
+    name: str
+    providerid: str
+    bucket: str
+    size: int = -1
+    content_type: str = "application/octet-stream"
+    metadata: Optional[Dict[str, str]] = None
+    version: Optional[str] = None
+    md5hash: Optional[str] = None
+    current: bool = True
+    public_url: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    def __hash__(self) -> int:
+        return self.md5hash
+
+    def __eq__(self, other):
+        return self == other
+
+    def __gt__(self, other):
+        if self.created_at and other.created_at:
+            return self.created_at.timestamp() > other.created_at.timestamp()
+        else:
+            return self.version > other.version
+
+    def __repr__(self):
+        return f"<Blob: {self.id}>"
+
+    def __str__(self):
+        return f"<Blob: {self.id}>"
+
+
+class Bucket(BaseModel):
+    name: str
+    url: str
+    storage_class: str
+    location: str
+    versioning: bool
+    labels: Optional[Dict[str, str]] = None
+    public: bool = False
+    created_at: Optional[datetime] = None
+
+    def __repr__(self):
+        return f"<Bucket {self.name}>"
+
+    def __str__(self):
+        return f"<Bucket {self.name}>"
