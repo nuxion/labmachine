@@ -55,9 +55,9 @@ class JupyterInstance(BaseModel):
 class JupyterVolume(BaseModel):
     name: str
     size: str = "10"
-    description: str = "Data volume",
-    storage_type: str = "pd-standard",
-    labels: Dict[str, Any] = {},
+    description: str = "Data volume"
+    storage_type: str = "pd-standard"
+    labels: Dict[str, Any] = {}
 
 
 class ContainerRegistry(BaseModel):
