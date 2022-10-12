@@ -17,7 +17,7 @@ include = ["LICENSE"]
 jupctl = "labmachine.cli:cli"
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.11"
+python = ">=3.7,<3.11"
 apache-libcloud = "^3.6.0"
 pydantic = "^1.9.2"
 nanoid = "^2.0.0"
@@ -38,7 +38,7 @@ google = [
 ]
 
 [tool.poetry.dev-dependencies]
-ipython = "^8.4.0"
+ipython = ">=7.3.4" # needed for python3.7 support
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
