@@ -14,3 +14,9 @@ class BucketForbidden(Exception):
     def __init__(self, bucket):
         msg = f"Not permissions for {bucket}"
         super().__init__(msg)
+
+
+class LabStateNotFound(Exception):
+    def __init__(self, state_path):
+        msg = f"State not found in path {state_path}"
+        super().__init__(msg)

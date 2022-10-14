@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, BaseSettings
 
-from labmachine import defaults, utils
+from labmachine import defaults, errors, utils
 from labmachine.base import ComputeSpec, DNSSpec
 from labmachine.io.kvspec import GenericKVSpec
 from labmachine.types import (AttachStorage, BlockStorage, BootDiskRequest,
@@ -110,7 +110,7 @@ def load_conf_module(settings_module) -> JupyterConfig:
     return cfg
 
 
-def fetch_state(path) -> Union[JupyterState, None]:
+def fetch_state(path) -> JupyterState:
     data = None
     if path.startswith("gs://"):
         GS: GenericKVSpec = utils.get_class("labmachine.io.kv_gcs.KVGS")
@@ -123,11 +123,11 @@ def fetch_state(path) -> Union[JupyterState, None]:
     elif Path(path).exists():
         with open(path, "r") as f:
             data = f.read()
-    if data:
-        jdata = json.loads(data)
-        s = JupyterState(**jdata)
-        return s
-    return None
+    if not data:
+        raise errors.LabStateNotFound(path)
+    jdata = json.loads(data)
+    s = JupyterState(**jdata)
+    return s
 
 
 def clean_state(state_link) -> str:
@@ -576,9 +576,19 @@ def init(project: str,
          location: str,
          dns_id: str,
          state_path: str,
-         ) -> Union[JupyterController, None]:
-    """ it will be deprecated in future releases """
-    if not fetch_state(state_path):
+         ) -> JupyterController:
+    """
+    It's in charge of the jupyter initialization
+    Their function is to create a `state.json` file.
+    if this already exist then, only creates the JupyterController
+    object. 
+    
+    """
+    try:
+        jup = from_state(state_path)
+    except errors.LabStateNotFound:
+        jup = None
+    if not jup:
         st = JupyterState(
             project=project,
             compute_provider=compute_provider,
@@ -594,5 +604,4 @@ def init(project: str,
             DNS_PROVIDERS[dns_provider])(
                 keyvar=_check_dns_env_var())
         jup = JupyterController(compute, dns=dns, state=st)
-        return jup
-    return None
+    return jup

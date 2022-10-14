@@ -81,13 +81,9 @@ def init(project, compute_provider, dns_provider, location, dns_id, state):
     else:
         jup = jupyter.init(
             project, compute_provider, dns_provider, location, dns_id, state)
-        if not jup:
-            console.print("[red]It seems that this project already exist.[/]")
-            console.print("Try with the fetch command instead.")
-        else:
-            console.print(
+        console.print(
                 f":smile_cat: Congratulations! [green]Lab data initialized[/]")
-            jupyter.save_conf(state)
+        jupyter.save_conf(state)
 
 
 @cli.command(name="list-locations")
