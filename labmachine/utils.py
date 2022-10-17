@@ -62,3 +62,11 @@ def convert_size(size_bytes):
     p = math.pow(1024, i)
     s = round(size_bytes / p, 2)
     return "%s %s" % (s, size_name[i])
+
+
+def from_path_to_module_str(fp) -> str:
+    """ experimental:
+    from "examples/model.py" it should return
+    "example.model"
+    """
+    return fp.rsplit(".", maxsplit=1)[0].replace("/", ".")

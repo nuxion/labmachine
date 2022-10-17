@@ -82,7 +82,7 @@ def init(project, compute_provider, dns_provider, location, dns_id, state):
         jup = jupyter.init(
             project, compute_provider, dns_provider, location, dns_id, state)
         console.print(
-                f":smile_cat: Congratulations! [green]Lab data initialized[/]")
+            f":smile_cat: Congratulations! [green]Lab data initialized[/]")
         jupyter.save_conf(state)
 
 
@@ -196,16 +196,24 @@ def list_provs(kind):
 
 @cli.command(name="up")
 @click.option("--state", "-s", default=None, help="Where state will be stored")
-@click.option("--from-module", "-f", default=None, required=True, help="Create lab from module")
+@click.option("--from-module", "-m", default=None, required=True, help="Create lab from module")
+@click.option("--from-file", "-f", default=None, required=True, help="Create lab from file [EXPERIMENTAL]")
 # @click.option("--debug", "-d", default=False, is_flag=True, help="flag debug")
 @click.option("--wait-timeout", default=None, help="Waiting timeout (in seconds)")
-def lab_up(state, from_module, wait_timeout):
+def lab_up(state, from_module, from_file, wait_timeout):
     """ Create a VM instance for jupyter """
     jup = _load_jupyter(state)
 
     with progress:
         task = progress.add_task("Starting lab creation")
-        cfg = jupyter.load_conf_module(from_module)
+        if from_module:
+            cfg = jupyter.load_conf_module(from_module)
+        elif from_file:
+            cfg = jupyter.load_conf_module(from_module)
+        else:
+            console.print(
+                "[bold red]you should provide --from-file or --from-module param[/]")
+            sys.exit(-1)
         rsp = jup.create_lab(cfg.INSTANCE, volume=cfg.VOLUME)
         jup.push()
     console.print("=> [green]Lab created[/]")

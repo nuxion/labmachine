@@ -16,6 +16,8 @@ from labmachine.types import (AttachStorage, BlockStorage, BootDiskRequest,
                               Permissions, StorageRequest, VMInstance,
                               VMRequest)
 
+import sys
+
 VM_PROVIDERS = {"gce": "labmachine.providers.google.Compute"}
 DNS_PROVIDERS = {
     "gce": "labmachine.providers.google.GoogleDNS",
@@ -96,7 +98,15 @@ class LabResponse(BaseModel):
     url: str
 
 
-def load_conf_module(settings_module) -> JupyterConfig:
+def load_conf_file(settings_file) -> JupyterConfig:
+    settings_module = utils.from_path_to_module_str(settings_file)
+    cfg = load_conf_module(settings_module)
+    return cfg
+
+
+def load_conf_module(settings_module, add_current_dir=True) -> JupyterConfig:
+    if add_current_dir:
+        sys.path.append(os.getcwd())
     mod = import_module(settings_module)
 
     settings_dict = {}
@@ -113,6 +123,9 @@ def load_conf_module(settings_module) -> JupyterConfig:
 def fetch_state(path) -> JupyterState:
     data = None
     if path.startswith("gs://"):
+        # FIX: temporal path to override GOOGLE_CREDEN... variable
+        # and use JUP_COMPUTE_KEY instead.
+        os.environ[defaults.GOOGLE_AUTH_ENV] = os.environ[defaults.JUP_COMPUTE_KEY]
         GS: GenericKVSpec = utils.get_class("labmachine.io.kv_gcs.KVGS")
         _parsed = urlparse(path)
         gs = GS(_parsed.netloc, client_opts={
@@ -582,7 +595,7 @@ def init(project: str,
     Their function is to create a `state.json` file.
     if this already exist then, only creates the JupyterController
     object. 
-    
+
     """
     try:
         jup = from_state(state_path)
