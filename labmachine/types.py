@@ -289,3 +289,21 @@ class Bucket(BaseModel):
 
     def __str__(self):
         return f"<Bucket {self.name}>"
+
+
+class LogEntry(BaseModel):
+    logid: str
+    log_name: str
+    payload: Dict[str, Any]
+    timestamp: datetime
+    level: Optional[str] = None
+    labels: Optional[Dict[str, Any]] = None
+
+    def __hash__(self) -> int:
+        return self.logid
+
+    def __eq__(self, other):
+        return self == other
+
+    def __gt__(self, other):
+        return self.timestamp.timestamp() > other.timestamp.timestamp()

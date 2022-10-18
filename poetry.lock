@@ -163,6 +163,19 @@ pyopenssl = ["pyopenssl (>=20.0.0)"]
 reauth = ["pyu2f (>=0.1.5)"]
 
 [[package]]
+name = "google-cloud-appengine-logging"
+version = "1.1.6"
+description = ""
+category = "main"
+optional = true
+python-versions = ">=3.7"
+
+[package.dependencies]
+google-api-core = {version = ">=1.31.5,<2.0.0 || >2.3.0,<3.0.0dev", extras = ["grpc"]}
+proto-plus = ">=1.22.0,<2.0.0dev"
+protobuf = ">=3.19.5,<3.20.0 || >3.20.0,<3.20.1 || >3.20.1,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<5.0.0dev"
+
+[[package]]
 name = "google-cloud-artifact-registry"
 version = "1.3.3"
 description = "Artifact Registry API client library"
@@ -175,6 +188,18 @@ google-api-core = {version = ">=1.32.0,<2.0.0 || >=2.8.0,<3.0.0dev", extras = ["
 grpc-google-iam-v1 = ">=0.12.4,<1.0.0dev"
 proto-plus = ">=1.22.0,<2.0.0dev"
 protobuf = ">=3.19.5,<3.20.0 || >3.20.0,<3.20.1 || >3.20.1,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<5.0.0dev"
+
+[[package]]
+name = "google-cloud-audit-log"
+version = "0.2.4"
+description = "Google Cloud Audit Protos"
+category = "main"
+optional = true
+python-versions = ">=3.7"
+
+[package.dependencies]
+googleapis-common-protos = ">=1.56.2,<2.0dev"
+protobuf = ">=3.6.0,<5.0.0dev"
 
 [[package]]
 name = "google-cloud-core"
@@ -190,6 +215,23 @@ google-auth = ">=1.25.0,<3.0dev"
 
 [package.extras]
 grpc = ["grpcio (>=1.38.0,<2.0dev)"]
+
+[[package]]
+name = "google-cloud-logging"
+version = "3.2.5"
+description = "Stackdriver Logging API client library"
+category = "main"
+optional = true
+python-versions = ">=3.7"
+
+[package.dependencies]
+google-api-core = {version = ">=1.32.0,<2.0.0 || >=2.8.0,<3.0.0dev", extras = ["grpc"]}
+google-cloud-appengine-logging = ">=0.1.0,<2.0.0dev"
+google-cloud-audit-log = ">=0.1.0,<1.0.0dev"
+google-cloud-core = ">=2.0.0,<3.0.0dev"
+grpc-google-iam-v1 = ">=0.12.4,<1.0.0dev"
+proto-plus = ">=1.22.0,<2.0.0dev"
+protobuf = ">=3.19.5,<3.20.0 || >3.20.0,<3.20.1 || >3.20.1,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<5.0.0dev"
 
 [[package]]
 name = "google-cloud-storage"
@@ -648,7 +690,7 @@ google = ["smart-open", "google-cloud-storage", "google-cloud-artifact-registry"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7,<3.11"
-content-hash = "992752f4e59a8f5389e97e80ed83525bf124609d230890c49ced5653e9fc3090"
+content-hash = "04917dc7fd6bbb158ea842dd0cb9ac1aa1dd859237107d712f11d00e62d81850"
 
 [metadata.files]
 apache-libcloud = []
@@ -686,8 +728,11 @@ decorator = [
 ]
 google-api-core = []
 google-auth = []
+google-cloud-appengine-logging = []
 google-cloud-artifact-registry = []
+google-cloud-audit-log = []
 google-cloud-core = []
+google-cloud-logging = []
 google-cloud-storage = []
 google-crc32c = []
 google-resumable-media = []

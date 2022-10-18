@@ -121,9 +121,9 @@ class StorageClasses(Enum):
     LOW = 2
     ARCHIVE = 3
 
+
 class Locations:
     pass
-
 
 
 class StorageSpec(ABC):
@@ -232,4 +232,19 @@ class StorageSpec(ABC):
     @abstractmethod
     def upload_signed(self, key, minutes=15, bucket=None,
                       content_type="application/octed-stream"):
+        pass
+
+
+class LogsSpec(ABC):
+
+    providerid: str
+    keyvar: str
+    filters: Dict[str, str]
+
+    def __init__(self, keyvar: str):
+        self.keyvar = keyvar
+
+    @abstractmethod
+    def list_logs(self, filter_: str, order_by: str, max_results=None) \
+        -> List[types.LogEntry]:
         pass

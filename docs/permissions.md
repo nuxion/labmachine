@@ -13,6 +13,7 @@ Those two steps needs different permissions, if you want more control over that 
 - `roles/storage.admin`
 - `roles/storage.objectAdmin`
 - `roles/iam.serviceAccountUser` # should be verified
+- `roles/logging.admin` # for logging
 
 **Running Jupyter**:
 
@@ -21,6 +22,7 @@ Artifact and ServviceAccountTokenCreator are needed if you are using Artifacts f
 - `roles/storage.objectAdmin`
 - `roles/artifactregistry.reader` If artifacts is used for pulling containers
 - `roles/iam.serviceAccountTokenCreator` # needed to print credentials for `docker login` 
+- `roles/logging.admin` # for logging
 
 Long story short, in a fullstack google cloud solution, the roles needed are:
 
@@ -31,6 +33,7 @@ Long story short, in a fullstack google cloud solution, the roles needed are:
 - `roles/artifactregistry.reader` If artifacts is used for pulling containers
 - `roles/storage.admin`
 - `roles/storage.objectAdmin`
+- `roles/logging.admin` # for logging
 
 
 A helper script which creates only one service account as `labcreator` with all that roles is provided inside the scripts folder: [create_account](../scripts/create_account.py)

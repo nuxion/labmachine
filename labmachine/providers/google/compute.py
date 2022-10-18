@@ -73,7 +73,7 @@ class Compute(ComputeSpec):
         if len(node.public_ips) > 1:
             public_ips = node.public_ips
         vm = VMInstance(
-            vm_id=self._vm_id(node.name, location=node.extra["zone"].name),
+            vm_id=node.id,
             vm_name=node.name,
             state=node.state,
             location=node.extra["zone"].name,
@@ -154,7 +154,7 @@ class Compute(ComputeSpec):
             attached = self._attach_disks(instance, vm.attached_disks)
 
         res = VMInstance(
-            vm_id=self._vm_id(vm.name, location=vm.location),
+            vm_id=instance.id,
             vm_name=vm.name,
             location=vm.location,
             state=instance.state,
@@ -187,7 +187,7 @@ class Compute(ComputeSpec):
             if len(n.public_ips) > 1:
                 public_ips = n.public_ips
             _n = VMInstance(
-                vm_id=self._vm_id(n.name, location=n.extra["zone"].name),
+                vm_id=n.id,
                 vm_name=n.name,
                 state=n.state,
                 location=n.extra["zone"].name,

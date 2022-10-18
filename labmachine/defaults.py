@@ -6,3 +6,4 @@ JUP_DNS_KEY = "JUP_DNS_KEY"
 JUP_COMPUTE_KEY = "JUP_COMPUTE_KEY"
 GOOGLE_AUTH_ENV = "GOOGLE_APPLICATION_CREDENTIALS"
 ENVS_FILES = [".env", ".env.dev",  ".env.test", ".env.prod"]
+LOG_BUCKET = "labmachine"

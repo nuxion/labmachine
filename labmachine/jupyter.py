@@ -1,6 +1,8 @@
 import json
 import os
 import secrets
+import sys
+from datetime import date, datetime
 from importlib import import_module
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
@@ -9,19 +11,21 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, BaseSettings
 
 from labmachine import defaults, errors, utils
-from labmachine.base import ComputeSpec, DNSSpec
+from labmachine.base import ComputeSpec, DNSSpec, LogsSpec
 from labmachine.io.kvspec import GenericKVSpec
 from labmachine.types import (AttachStorage, BlockStorage, BootDiskRequest,
                               DNSRecord, DNSZone, GPURequest, InstanceType,
-                              Permissions, StorageRequest, VMInstance,
-                              VMRequest)
-
-import sys
+                              LogEntry, Permissions, StorageRequest,
+                              VMInstance, VMRequest)
 
 VM_PROVIDERS = {"gce": "labmachine.providers.google.Compute"}
 DNS_PROVIDERS = {
     "gce": "labmachine.providers.google.GoogleDNS",
     "cloudflare": "labmachine.providers.cloudflare.dns.CloudflareDNS",
+}
+
+LOGS_PROVIDERS = {
+    "gce": "labmachine.providers.google.Logs"
 }
 
 
@@ -31,6 +35,11 @@ def _check_dns_env_var():
         return defaults.JUP_DNS_KEY
     else:
         return defaults.JUP_COMPUTE_KEY
+
+
+def _get_today() -> str:
+
+    return date.today().isoformat()
 
 
 class JupyterInstance(BaseModel):
@@ -86,6 +95,7 @@ class JupyterState(BaseModel):
     zone_id: str
     self_link: str
     volumes: Dict[str, BlockStorage] = {}
+    logs_provider: Optional[str] = None
     vm: Optional[VMInstance] = None
     url: Optional[str] = None
     record: Optional[DNSRecord] = None
@@ -215,12 +225,14 @@ class JupyterController:
 
     def __init__(self, compute: ComputeSpec,
                  dns: DNSSpec,
-                 state: JupyterState
+                 state: JupyterState,
+                 logs: Optional[LogsSpec] = None
                  ):
         self.compute = compute
         self.dns = dns
         self._zone = self.dns.get_zone(state.zone_id)
         self._state: JupyterState = state
+        self.logs = logs
 
     @classmethod
     def init(cls,
@@ -252,35 +264,20 @@ class JupyterController:
         return None
 
     # @classmethod
-    # def from_settings(cls, settings_module: str) -> "JupyterController":
-    #     cfg = load_jupyter_conf(settings_module)
-    #     state = fetch_state(cfg.STATE_PATH)
+    # def from_state(cls, path: str) -> "JupyterController":
+    #     """ It will be deprecated in future releases"""
+    #     s = fetch_state(path)
     #     compute: ComputeSpec = utils.get_class(
-    #         VM_PROVIDERS[state.compute_provider])(keyvar=defaults.JUP_COMPUTE_KEY)
-    #     dns: DNSSpec = utils.get_class(
-    #         DNS_PROVIDERS[state.dns_provider])(keyvar=_check_dns_env_var())
-
+    #         VM_PROVIDERS[s.compute_provider])(
+    #             keyvar=defaults.JUP_COMPUTE_KEY
+    #     )
+    #     dns: DNSSpec = utils.get_class(DNS_PROVIDERS[s.dns_provider])(
+    #         keyvar=defaults.JUP_COMPUTE_KEY)
     #     return cls(
     #         compute=compute,
     #         dns=dns,
-    #         state=state
+    #         state=s
     #     )
-
-    @classmethod
-    def from_state(cls, path: str) -> "JupyterController":
-        """ It will be deprecated in future releases"""
-        s = fetch_state(path)
-        compute: ComputeSpec = utils.get_class(
-            VM_PROVIDERS[s.compute_provider])(
-                keyvar=defaults.JUP_COMPUTE_KEY
-        )
-        dns: DNSSpec = utils.get_class(DNS_PROVIDERS[s.dns_provider])(
-            keyvar=defaults.JUP_COMPUTE_KEY)
-        return cls(
-            compute=compute,
-            dns=dns,
-            state=s
-        )
 
     @property
     def zone(self) -> DNSZone:
@@ -551,6 +548,41 @@ class JupyterController:
     def clean(self):
         clean_state(self._state.self_link)
 
+    def _get_logs_lab(self, lines, ts_filter):
+        filter_labmachine = self.logs.filters["by-name"].format(
+            defaults.LOG_BUCKET)
+        filter_ = f"{filter_labmachine} AND {ts_filter}"
+        _logs = self.logs.list_logs(filter_=filter_,
+                                    max_results=lines)
+        for log in _logs:
+            _host, msg = log.payload["msg"].split("--")
+            log.payload = {"hostname": _host, "msg": msg}
+        return _logs
+
+    def _get_logs_instance(self, lines, ts_filter):
+        _vmid = self._state.vm.vm_id
+        _vmname = self._state.vm.vm_name
+        _instance = self.logs.filters["by-instance"]\
+            .format(_vmid)
+        filter_ = f"{_instance} AND {ts_filter}"
+        _logs = self.logs.list_logs(filter_=filter_, max_results=lines)
+        for log in _logs:
+            log.payload = log.payload = {"hostname": _vmname,
+                                         "msg": log.payload["message"]}
+        return _logs
+
+    def list_logs(self, lines=5, from_ts=_get_today()) -> List[LogEntry]:
+
+        ts_filter = self.logs.filters['timestamp'].format(from_ts)
+
+        _logs = self._get_logs_lab(lines, ts_filter)
+
+        if self._state.vm:
+            _logs2 = self._get_logs_instance(lines, ts_filter)
+            _logs.extend(_logs2)
+
+        return sorted(_logs, reverse=True)
+
 
 def save_conf(state_path, conf_path=defaults.JUPCTL_CONF):
     utils.write_toml(conf_path, {"state": state_path})
@@ -570,10 +602,16 @@ def from_state(path: str) -> JupyterController:
     )
     dns: DNSSpec = utils.get_class(DNS_PROVIDERS[s.dns_provider])(
         keyvar=_check_dns_env_var())
+    logs = None
+    if s.logs_provider:
+        logs: LogsSpec = utils.get_class(LOGS_PROVIDERS[s.logs_provider])(
+            keyvar=defaults.JUP_COMPUTE_KEY
+        )
     return JupyterController(
         compute=compute,
         dns=dns,
-        state=s
+        state=s,
+        logs=logs
     )
 
 
@@ -589,6 +627,7 @@ def init(project: str,
          location: str,
          dns_id: str,
          state_path: str,
+         logs_provider=None,
          ) -> JupyterController:
     """
     It's in charge of the jupyter initialization
@@ -606,6 +645,7 @@ def init(project: str,
             project=project,
             compute_provider=compute_provider,
             dns_provider=dns_provider,
+            logs_provider=logs_provider,
             location=location,
             zone_id=dns_id,
             self_link=state_path,
@@ -616,5 +656,10 @@ def init(project: str,
         dns: DNSSpec = utils.get_class(
             DNS_PROVIDERS[dns_provider])(
                 keyvar=_check_dns_env_var())
-        jup = JupyterController(compute, dns=dns, state=st)
+        logs = None
+        if logs_provider:
+            logs = utils.get_class(LOGS_PROVIDERS[logs_provider])(
+                keyvar=defaults.JUP_COMPUTE_KEY
+            )
+        jup = JupyterController(compute, dns=dns, state=st, logs=logs)
     return jup

@@ -12,10 +12,14 @@ DATA_DIR=${DEFAULT_VOL}/data
 WORKAREA=/workarea
 CHECK_EVERY=30
 LOG_FILE=/var/log/jupyter_startup.log
+LOG_BUCKET="labmachine"
 exec 3>&1 1>>${LOG_FILE} 2>&1
 
+
 _log() {
-   echo "$(date): $@" | tee /dev/fd/3
+    echo "$(date): $@" | tee /dev/fd/3
+    payload="${HOSTNAME} -- $@"
+    gcloud logging write $LOG_BUCKET "${payload}" --severity=INFO
 }
 
 command_exists() {
@@ -40,6 +44,7 @@ then
     apt-get install -y jq
 fi
 
+# INSTANCE= curl -s "http://metadata.google.internal/computeMetadata/v1/?recursive=true" -H "Metadata-Flavor: Google" | jq ".instance.name"
 META=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/?recursive=true" -H "Metadata-Flavor: Google"`
 LAB_URL=`echo $META | jq .laburl | tr -d '"'`
 # NAME=`curl -s "http://metadata.google.internal/computeMetadata/v1/instance/name" -H "Metadata-Flavor: Google"`
@@ -53,6 +58,7 @@ GPU=`echo $META | jq .gpu | tr -d '"'`
 DEBUG=`echo $META | jq .debug | tr -d '"'`
 REGISTRY=`echo $META | jq .registry | tr -d '"'`
 LOCATION=`echo $META | jq .location | tr -d '"'`
+
 
 login_docker() {
     # https://${LOCATION}-docker.pkg.dev
@@ -98,7 +104,7 @@ check_pull(){
 
 if [ "${LAB_VOL}" != "null" ];
 then
-   _log "Configuring LAB_VOL (${LAB_VOL}) in $DEFAULT_VOL"
+   _log "Configuring LAB_VOL $LAB_VOL in $DEFAULT_VOL"
    mkdir -p ${DEFAULT_VOL}
    check_disk_formated ${LAB_VOL}
    status=$?
@@ -140,7 +146,8 @@ running=`docker ps | grep jupyter | wc -l`
 _log "JUPYTER Running: ${running}"
 while [ $running -gt 0 ]
 do
-    _log "Still running jupyter"
+    # _log "Still running jupyter"
+    echo "$(date): Still running jupyter" | tee /dev/fd/3
     running=`docker ps | grep jupyter | wc -l`
     sleep $CHECK_EVERY
 done
