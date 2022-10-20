@@ -28,7 +28,7 @@ command_exists() {
 
 if ! command_exists "cscli" &> /dev/null
 then
-    curl -Ls https://raw.githubusercontent.com/nuxion/cloudscripts/main/install.sh | bash
+    curl -Ls https://raw.githubusercontent.com/nuxion/cloudscripts/0.2.0/install.sh | bash
 fi
 if ! command_exists "caddy" &> /dev/null
 then
