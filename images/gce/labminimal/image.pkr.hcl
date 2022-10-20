@@ -14,10 +14,12 @@ source "googlecompute" "labminimal-cpu" {
   zone              = var.zone
   disk_size         = 10
   disk_type         = var.disk_type
-  # image_name        = "lab-agent-${legacy_isotime("2006-01-02")}"
   image_name        = "lab-minimal-${var.img_version}"
   image_description = "lab on demand"
-  machine_type      = "e2-micro"
+  image_family      = "labfunctions"
+  image_labels      =  { "arch": "cpu" }
+  image_storage_locations = ["${var.image_zone}"]
+  machine_type      = "${var.machine_type}"
 }
 
 build {
@@ -28,7 +30,8 @@ build {
   # }
   provisioner "shell" {
     inline = [
-      "curl -Ls https://raw.githubusercontent.com/nuxion/cloudscripts/main/install.sh | sh",
+      "sudo apt-get update",
+      "curl -Ls https://raw.githubusercontent.com/nuxion/cloudscripts/0.2.0/install.sh | bash",
       "sudo cscli -i docker",
       "sudo cscli -i caddy",
       "sudo apt-get update -y",

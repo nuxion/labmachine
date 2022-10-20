@@ -12,6 +12,11 @@ variable "zone" {
 	default = "us-east1-c"
 }
 
+variable "image_zone" {
+	type = string
+	default = "us"
+}
+
 variable "disk_type" {
 	type = string
 	default = "pd-standard"

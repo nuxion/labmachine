@@ -1,5 +1,6 @@
 import datetime
 import json
+import os
 import sys
 import time
 from datetime import timedelta
@@ -62,6 +63,12 @@ def volumes():
     pass
 
 
+@click.group()
+def helper():
+    """ list operations """
+    pass
+
+
 @cli.command(name="init")
 @click.option("--project", "-p", default="default", help="Project")
 @click.option("--compute-provider", "-C", default="gce",
@@ -72,21 +79,25 @@ def volumes():
               help="location to be used")
 @click.option("--dns-id", "-d", default=None, required=True,
               help="Domain to be used")
+@click.option("--logs", default=None, required=True,
+              help="Domain to be used")
 @click.option("--state", "-s", default="state.json", help="Where state will be stored")
-def init(project, compute_provider, dns_provider, location, dns_id, state):
+def init(project, compute_provider, dns_provider, location, dns_id, state, logs):
     """ Initialize jupctl """
     if Path(defaults.JUPCTL_CONF).is_file():
         console.print(
             f"[red]A {defaults.JUPCTL_CONF} already exist in the project[/]")
     else:
+
         jup = jupyter.init(
-            project, compute_provider, dns_provider, location, dns_id, state)
+            project, compute_provider, dns_provider, location, dns_id, state,
+            logs_provider=logs)
         console.print(
             f":smile_cat: Congratulations! [green]Lab data initialized[/]")
         jupyter.save_conf(state)
 
 
-@cli.command(name="list-locations")
+@helper.command(name="list-locations")
 @click.option("--compute-provider", "-C", default="gce",
               help="Provider to be used for vm creation")
 @click.option("--filter-country", "-c", default=None,
@@ -110,7 +121,7 @@ def list_locs(compute_provider, filter_country):
     console.print(table)
 
 
-@cli.command(name="list-vm-types")
+@helper.command(name="list-vm-types")
 @click.option("--compute-provider", "-C", default="gce",
               help="Provider to be used for vm creation")
 @click.option("--location", "-l", default=None,
@@ -133,7 +144,7 @@ def list_vm_types(compute_provider, location):
     console.print(table)
 
 
-@cli.command(name="list-images")
+@helper.command(name="list-images")
 @click.option("--compute-provider", "-C", default="gce",
               help="Provider to be used for vm creation")
 def list_images(compute_provider):
@@ -150,7 +161,7 @@ def list_images(compute_provider):
     console.print(table)
 
 
-@cli.command(name="list-dns")
+@helper.command(name="list-dns")
 @click.option("--dns-provider", "-D", default="gce",
               help="Provider to be used for dns")
 def list_dns(dns_provider):
@@ -169,7 +180,7 @@ def list_dns(dns_provider):
     console.print(table)
 
 
-@cli.command(name="list-providers")
+@helper.command(name="list-providers")
 @click.argument("kind", default="all", type=click.Choice(["dns", "compute", "all"]))
 def list_provs(kind):
     """ list compute and dns providers """
@@ -196,8 +207,8 @@ def list_provs(kind):
 
 @cli.command(name="up")
 @click.option("--state", "-s", default=None, help="Where state will be stored")
-@click.option("--from-module", "-m", default=None, required=True, help="Create lab from module")
-@click.option("--from-file", "-f", default=None, required=True, help="Create lab from file [EXPERIMENTAL]")
+@click.option("--from-module", "-m", default=None, help="Create lab from module")
+@click.option("--from-file", "-f", default=None, help="Create lab from file [EXPERIMENTAL]")
 # @click.option("--debug", "-d", default=False, is_flag=True, help="flag debug")
 @click.option("--wait-timeout", default=None, help="Waiting timeout (in seconds)")
 def lab_up(state, from_module, from_file, wait_timeout):
@@ -209,7 +220,7 @@ def lab_up(state, from_module, from_file, wait_timeout):
         if from_module:
             cfg = jupyter.load_conf_module(from_module)
         elif from_file:
-            cfg = jupyter.load_conf_module(from_module)
+            cfg = jupyter.load_conf_file(from_file)
         else:
             console.print(
                 "[bold red]you should provide --from-file or --from-module param[/]")
@@ -260,11 +271,13 @@ def fetch(state, output):
 def destroy(state):
     """It will destroy a lab """
     jup = _load_jupyter(state)
-    with progress:
-        task1 = progress.add_task(
-            f"[red]Destroying jupyter {jup._state.url}[/]")
-        jup.destroy_lab()
-        jup.push()
+    _confirm = Confirm.ask(f"Do you want to destroy this lab? (disks will be ignored)")
+    if _confirm:
+        with progress:
+            task1 = progress.add_task(
+                f"[red]Destroying jupyter {jup._state.url}[/]")
+            jup.destroy_lab()
+            jup.push()
 
 
 @volumes.command(name="create")
@@ -380,11 +393,15 @@ def volume_destroy(state, name):
 def clean_state_cmd(state):
     """ Will remove the state file """
     jup = _load_jupyter(state)
-    _confirm = Confirm.ask(f"Do you want to remove the state from {_state}?")
+    _state = jup._state.self_link
+    _confirm = Confirm.ask(
+        f"Do you want to remove the state from {_state}?")
     if _confirm:
-        clean_state(_state)
+        jupyter.clean_state(_state)
         Path(defaults.JUPCTL_CONF).unlink()
         console.print(f"[green]State deleted from {_state}[/]")
+        console.print(
+            f"[green]Jupctl conf file removed from {defaults.JUPCTL_CONF}[/]")
 
 
 @cli.command(name="wait")
@@ -428,7 +445,7 @@ def push_state_cli(state, from_file):
     console.print(f"State {from_file} pushed to {_state.self_link}")
 
 
-@cli.command(name="list-containers")
+@helper.command(name="list-containers")
 @click.option("--name", "-n", default=None,
               help="repo name")
 @click.option("--project", "-p", default=None,
@@ -457,6 +474,22 @@ def list_containers(name, project, location):
                       )
     console.print(table)
 
+
+@cli.command(name="logs")
+@click.option("--state", "-s", default=None,
+              help="Where state will be stored")
+@click.option("--lines", "-l", default=5,
+              help="Max lines")
+def logs(state, lines):
+    """ show logs """
+    jup = _load_jupyter(state)
+    logs = jup.list_logs(lines=lines)
+    for log in logs:
+        console.print(f"{log.timestamp} - {log.payload}")
+
+
+if os.getenv("JUP_HELPERS"):
+    cli.add_command(helpers)
 
 cli.add_command(volumes)
 
