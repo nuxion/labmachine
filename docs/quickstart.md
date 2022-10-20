@@ -28,6 +28,7 @@ Finally you will need to setup the credentials:
 ```
 export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/.ssh/gce.json
 export JUP_COMPUTE_KEY=${HOME}/.ssh/gce.json
+export SA_ACCOUNT="labcreator@<projectid>.iam.gserviceaccount.com"
 ```
 
 Note: `JUP_COMPUTE_KEY` is used by labmachine for authentication against cloud provider. In the case of Google, instead of `GOOGLE_APPLICATION_CREDENTIALS` env var, JUP_COMPUTE_KEY is used. This change is because some use cases may need to decouple DNS provisioning from Compute Provisioning in different accounts. 

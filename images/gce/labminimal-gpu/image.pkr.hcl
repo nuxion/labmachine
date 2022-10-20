@@ -16,8 +16,10 @@ source "googlecompute" "labminimal-gpu" {
   disk_type         = var.disk_type
   # image_name        = "lab-nvidia-${legacy_isotime("2006-01-02")}"
   image_name        = "lab-minimal-${var.img_version}-gpu"
+  image_family      = "labfunctions"
   image_description = "lab on demand with NVIDIA/GPU support"
-  machine_type      = "n1-standard-1"
+  image_labels      =  { "arch": "gpu" }
+  image_storage_locations = ["${var.image_zone}"]
   accelerator_type  = "projects/${var.project_id}/zones/${var.zone}/acceleratorTypes/nvidia-tesla-t4"
   accelerator_count = 1
   on_host_maintenance = "TERMINATE" # needed for instances with gpu 
@@ -32,8 +34,9 @@ build {
   # docker image based on github.com/nuxion/containers
   provisioner "shell" {
     inline = [
-      "curl -Ls https://raw.githubusercontent.com/nuxion/cloudscripts/main/install.sh | sh",
+      "curl -Ls https://raw.githubusercontent.com/nuxion/cloudscripts/0.2.0/install.sh | bash",
       "sudo cscli -i docker",
+      "sudo cscli -i nvidia-driver",
       "sudo cscli -i nvidia-docker",
       "sudo cscli -i caddy",
       "sudo usermod -aG docker `echo $USER`",
