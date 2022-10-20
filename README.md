@@ -26,6 +26,7 @@ Lab files are abstractions built over this library for jupyter lab provisioning.
 - GPU Provisioning (nvidia-smi installation, docker configuration, etc)
 - Linux image creation (Packer)
 - Entities types for autocompletion
+- Logging into cloud provider log service
 
 # Documentation
 
