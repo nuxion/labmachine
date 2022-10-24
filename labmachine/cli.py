@@ -14,7 +14,7 @@ from rich.progress import Progress, SpinnerColumn
 from rich.prompt import Confirm
 from rich.table import Table
 
-from labmachine import defaults, jupyter, shortcuts
+from labmachine import defaults, jupyter, shortcuts, dotenv
 from labmachine.types import DNSZone
 from labmachine.utils import convert_size, get_class
 
@@ -23,6 +23,8 @@ progress = Progress(
     SpinnerColumn(),
     "[progress.description]{task.description}",
 )
+
+dotenv.default()
 
 
 def _load_jupyter(state_path=None) -> jupyter.JupyterController:

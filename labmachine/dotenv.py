@@ -41,11 +41,16 @@ def load_envs(env_file: str) -> Dict[str, str]:
     """ it open, parse and load in the runtime enviroment any variable
     found in a file """
 
-    _envs = get_envs(env_file)
-    for k, v in _envs.items():
-        os.environ[k] = v
-    return _envs
+    _envs = {}
 
+    try:
+        _envs = get_envs(env_file)
+        for k, v in _envs.items():
+            os.environ[k] = v
+    except FileNotFoundError as e:
+        pass
+    
+    return _envs
 
 def default(env_files: List[str] = ENVS_FILES) -> Dict[str, str]:
     """
@@ -60,5 +65,5 @@ def default(env_files: List[str] = ENVS_FILES) -> Dict[str, str]:
     final = {}
     for file_ in env_files:
         _envs = load_envs(file_)
-        final.update(_ens)
+        final.update(_envs)
     return final
