@@ -8,71 +8,40 @@ from labmachine.providers.google.dns import GoogleDNS
 from labmachine.types import (AttachStorage, BootDiskRequest, DNSRecord,
                               GPURequest, VMRequest, Permissions)
 
-
 g = Compute()
 dns = GoogleDNS()
 console = Console()
+
+scopes = Permissions(account="labcreator@earthflow.iam.gserviceaccount.com", roles=["cloud-platform"])
 
 _rand = utils.generate_random(
     size=5, alphabet=defaults.NANO_MACHINE_ALPHABET)
 
 MACHINE = f"test-{_rand}"
-MACHINE_TYPE = "e2-micro"
-MACHINE_IMG = "debian-11-bullseye-v20220822"
-DOCKER_IMG = "jupyter/minimal-notebook"
 PROJECT = "test"
-LOCATION = "us-central1-c"
-TOKEN = secrets.token_urlsafe(16)
-PROVIDER = "gce"
-DOMAIN = "dymax.app"
-ZONEID = "dymax-app"
-USERID = "1000"
-
-VOLUME_DATA = "tesdatadisk"
-
-
-def check_disk():
-    v = None
-    try:
-        v = g.get_volume(VOLUME_DATA)
-    except Exception:
-        pass
-    if not v:
-        sr = StorageRequest(
-            name=VOLUME_DATA,
-            location=LOCATION,
-            storage_type="pd-standard"
-        )
-        g.create_volume(sr)
+DOCKER_IMG="jupyter-gdal:latest"
+DOMAIN="test.com"
 
 
 vm = VMRequest(
     name=MACHINE,
     instance_type="n1-standard-1",
-    # startup_script=open(f"scripts/{PROVIDER}_startup.sh").read(),
+    startup_script=open("labmachine/files/gce_test.sh").read(),
     location="us-central1-c",
     provider="gce",
     boot=BootDiskRequest(
-        image="debian-11-bullseye-v20220822",
-        size="10",
+        image="lab-minimal-010",
+        size="30",
         disk_type="pd-standard",
         auto_delete=True
     ),
     metadata={
-        "labdomain": "dymax.app",
-        "labimage": DOCKER_IMG,
-        "labtoken": TOKEN,
-        "labvol": VOLUME_DATA,
-        "labuid": USERID
+        "image": DOCKER_IMG,
+        "registry": "us-central1-docker.pkg.dev/earthflow/repo",
     },
-    attached_disks=[
-        AttachStorage(
-            disk_name=VOLUME_DATA,
-            mode="READ_WRITE",
-        )
-    ],
     # preemptible=True,
     tags=["http-server", "https-server"],
+    permissions=scopes,
     network="default",
     external_ip="ephemeral",
     labels={"project": PROJECT, "gpu": "no"},
