@@ -112,6 +112,7 @@ then
    then
       format_disk ${LAB_VOL}
    fi
+   resize2fs  ${DEVICE}-${LAB_VOL} | tee /dev/fd/3
    mount ${DEVICE}-${LAB_VOL} ${DEFAULT_VOL}
 fi
 check_folders
