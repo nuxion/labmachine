@@ -14,7 +14,7 @@ from rich.progress import Progress, SpinnerColumn
 from rich.prompt import Confirm
 from rich.table import Table
 
-from labmachine import defaults, jupyter, shortcuts, dotenv
+from labmachine import defaults, dotenv, jupyter, shortcuts
 from labmachine.types import DNSZone
 from labmachine.utils import convert_size, get_class
 
@@ -206,6 +206,23 @@ def list_provs(kind):
 
     console.print(table)
 
+
+@cli.command(name="list-instances")
+@click.option("--compute-provider", "-C", default="gce",
+              help="Provider to be used for vm creation")
+def list_instances(compute_provider):
+    """ List instances """
+    driver = get_class(jupyter.VM_PROVIDERS[compute_provider])()
+    instances = driver.list_vms()
+    table = Table(title=f"{compute_provider}'s nodes")
+
+    table.add_column("instance", justify="left")
+    table.add_column("status", justify="right")
+
+    for vm in instances:
+        table.add_row(vm.vm_name, vm.state)
+
+    console.print(table)
 
 @cli.command(name="up")
 @click.option("--state", "-s", default=None, help="Where state will be stored")
