@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from labmachine.base import ComputeSpec
-from labmachine.types import (AttachStorage, BlockStorage, StorageRequest,
-                              VMInstance, VMRequest)
+from labmachine.types import (AttachStorage, BlockStorage, SnapshotDisk,
+                              StorageRequest, VMInstance, VMRequest)
 from labmachine.utils import generate_random
 from libcloud.common import google
 from libcloud.compute.base import Node, NodeLocation
@@ -310,3 +310,33 @@ class Compute(ComputeSpec):
             )
             volumes.append(_vol)
         return volumes
+
+    def create_snapshot(self, volume_name: str, *, snapshot_name: str,
+                        location: Optional[str] = None):
+
+        vol = self.driver.ex_get_volume(volume_name, zone=location)
+        snapshot = self.driver.create_volume_snapshot(vol, snapshot_name)
+
+    def destroy_snapshot(self, snapshot_name: str,
+                         location: Optional[str] = None):
+        snapshot = self.driver.ex_get_snapshot(snapshot_name)
+        self.driver.destroy_volume_snapshot(snapshot)
+
+    def _to_snapshot(self, snapshot):
+        _source = snapshot.extra["sourceDisk"]
+        source = _source.rsplit("/", maxsplit=1)[1]
+        return SnapshotDisk(
+            id=snapshot.id,
+            name=snapshot.name,
+            size=snapshot.size,
+            status=snapshot.status,
+            source_disk=source,
+            source_disk_id=snapshot.extra["sourceDiskId"],
+            created_at=snapshot.extra["creationTimestamp"]
+        )
+
+    def list_snapshots(self, location: Optional[str] = None) \
+        -> List[SnapshotDisk]:
+        snaps = self.driver.ex_list_snapshots()
+        
+        return [self._to_snapshot(s) for s in snaps]

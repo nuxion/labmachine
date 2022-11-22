@@ -74,6 +74,19 @@ class ComputeSpec(ABC):
             -> List[types.BlockStorage]:
         pass
 
+    @abstractmethod
+    def create_snapshot(self, volume_name: str, *, snapshot_name: str,
+                        location: Optional[str] = None):
+        pass
+
+    def destroy_snapshot(self, snapshot_name: str,
+                         location: Optional[str] = None):
+        pass
+
+    def list_snapshots(self, location: Optional[str] = None) \
+        -> List[types.SnapshotDisk]:
+        pass
+
 
 class DNSSpec(ABC):
     providerid: str

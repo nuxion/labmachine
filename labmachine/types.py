@@ -62,6 +62,20 @@ class BlockStorage(BaseModel):
         return crc32(self.id.encode())
 
 
+class SnapshotDisk(BaseModel):
+    id: str
+    name: str
+    size: str
+    status: str
+    source_disk: str
+    source_disk_id: str
+    created_at: Optional[str] = None
+    extra: Optional[ExtraField] = None
+
+    def __hash__(self):
+        return crc32(self.id.encode())
+
+
 class AttachStorage(BaseModel):
     """
     :param disk_name: as resource

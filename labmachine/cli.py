@@ -66,6 +66,12 @@ def volumes():
 
 
 @click.group()
+def snapshot():
+    """ snapshots operations """
+    pass
+
+
+@click.group()
 def helper():
     """ list operations """
     pass
@@ -507,10 +513,57 @@ def logs(state, lines):
         console.print(f"{log.timestamp} - {log.payload}")
 
 
+@snapshot.command(name="list")
+@click.option("--state", "-s", default=None,
+              help="Where state will be stored")
+def snapshot_list(state):
+    """ destroy a volume """
+    jup = _load_jupyter(state)
+    snaps = jup.compute.list_snapshots()
+    table = Table(title=f"Snapshots")
+
+    table.add_column("name", justify="left")
+    table.add_column("size", justify="right")
+    table.add_column("source", justify="right")
+    table.add_column("created", justify="right")
+    for snap in snaps:
+        table.add_row(snap.name, snap.size, snap.source_disk,
+                      snap.created_at)
+
+    console.print(table)
+
+@snapshot.command(name="create")
+@click.option("--name", "-n", required=True, help="Snapshot name")
+@click.option("--source", "-S", required=True, help="Volume name")
+@click.option("--state", "-s", default=None,
+              help="Where state will be stored")
+def snapshot_create(name, source, state):
+    """ create a snapshot from a volume """
+    jup = _load_jupyter(state)
+    console.print(f"=> Creating a snapshot from {source}")
+    jup.compute.create_snapshot(source, snapshot_name=name)
+    console.print("=> Snapshot created")
+
+
+@snapshot.command(name="destroy")
+@click.option("--state", "-s", default=None,
+              help="Where state will be stored")
+@click.option("--name", "-n", required=True,
+              help="Name of the snapshot to destroy")
+def snapshot_destroy(state, name):
+    """ destroy a snapshot """
+    jup = _load_jupyter(state)
+    _confirm = Confirm.ask(f"Do you want to destroy {name}?")
+    if _confirm:
+        res = jup.compute.destroy_snapshot(name)
+        console.print(f"[green]Snapshot {name} destroyed.[/]")
+
+
 if os.getenv("JUP_HELPERS"):
     cli.add_command(helpers)
 
 cli.add_command(volumes)
+cli.add_command(snapshot)
 
 if __name__ == "__main__":
 
