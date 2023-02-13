@@ -16,6 +16,7 @@ class ComputeSpec(ABC):
     :param providerid: an unique identifier for the provider
 
     """
+
     providerid: str
     keyvar: str
 
@@ -23,8 +24,7 @@ class ComputeSpec(ABC):
         self.keyvar = keyvar
 
     @abstractmethod
-    def get_vm(self, vm_name: str, location: Optional[str] = None) \
-            -> types.VMInstance:
+    def get_vm(self, vm_name: str, location: Optional[str] = None) -> types.VMInstance:
         pass
 
     @abstractmethod
@@ -32,8 +32,9 @@ class ComputeSpec(ABC):
         pass
 
     @abstractmethod
-    def destroy_vm(self, vm: Union[str, types.VMInstance],
-                   location: Optional[str] = None):
+    def destroy_vm(
+        self, vm: Union[str, types.VMInstance], location: Optional[str] = None
+    ):
         pass
 
     @abstractmethod
@@ -51,8 +52,9 @@ class ComputeSpec(ABC):
         pass
 
     @abstractmethod
-    def resize_volume(self, name: str, size: str,
-                      location: Optional[str] = None) -> bool:
+    def resize_volume(
+        self, name: str, size: str, location: Optional[str] = None
+    ) -> bool:
         pass
 
     @abstractmethod
@@ -60,31 +62,31 @@ class ComputeSpec(ABC):
         pass
 
     @abstractmethod
-    def attach_volume(self, vm: str, attach: types.AttachStorage,
-                      location: Optional[str] = None) -> bool:
+    def attach_volume(
+        self, vm: str, attach: types.AttachStorage, location: Optional[str] = None
+    ) -> bool:
         pass
 
     @abstractmethod
-    def detach_volume(self, vm: str, disk: str,
-                      location: Optional[str] = None) -> bool:
+    def detach_volume(self, vm: str, disk: str, location: Optional[str] = None) -> bool:
         pass
 
     @abstractmethod
-    def list_volumes(self, location: Optional[str] = None) \
-            -> List[types.BlockStorage]:
+    def list_volumes(self, location: Optional[str] = None) -> List[types.BlockStorage]:
         pass
 
     @abstractmethod
-    def create_snapshot(self, volume_name: str, *, snapshot_name: str,
-                        location: Optional[str] = None):
+    def create_snapshot(
+        self, volume_name: str, *, snapshot_name: str, location: Optional[str] = None
+    ):
         pass
 
-    def destroy_snapshot(self, snapshot_name: str,
-                         location: Optional[str] = None):
+    def destroy_snapshot(self, snapshot_name: str, location: Optional[str] = None):
         pass
 
-    def list_snapshots(self, location: Optional[str] = None) \
-        -> List[types.SnapshotDisk]:
+    def list_snapshots(
+        self, location: Optional[str] = None
+    ) -> List[types.SnapshotDisk]:
         pass
 
 
@@ -140,18 +142,15 @@ class Locations:
 
 
 class StorageSpec(ABC):
-
     providerid: str
     keyvar: str
     filepath: Optional[str] = None
 
-    def __init__(self, bucket=None, *,
-                 keyvar: str = None,
-                 filepath: str = None):
+    def __init__(self, bucket=None, *, keyvar: str = None, filepath: str = None):
         self.keyvar = keyvar
         self.filepath = filepath
         if bucket:
-            self.bucket: Bucket = self.set_bucket(name)
+            self.bucket: types.Bucket = self.set_bucket(bucket)
 
     @classmethod
     def from_env(cls, keyvar: Optional[str] = None) -> "StorageSpec":
@@ -164,12 +163,14 @@ class StorageSpec(ABC):
         return obj
 
     @abstractmethod
-    def create_bucket(self,
-                      name: str,
-                      storage_class: str,
-                      location: str,
-                      versioning: bool,
-                      labels: Optional[Dict[str, str]] = None) -> types.Bucket:
+    def create_bucket(
+        self,
+        name: str,
+        storage_class: str,
+        location: str,
+        versioning: bool,
+        labels: Optional[Dict[str, str]] = None,
+    ) -> types.Bucket:
         raise NotImplementedError()
 
     @abstractmethod
@@ -195,19 +196,32 @@ class StorageSpec(ABC):
     def list_buckets(self, prefix: Optional[str] = None) -> List[types.Bucket]:
         pass
 
-    def list_objects(self, prefix: Optional[str] = None,
-                     max_results=None,
-                     page_token=None, history: bool = False) -> List[types.Blob]:
+    def list_objects(
+        self,
+        prefix: Optional[str] = None,
+        max_results=None,
+        page_token=None,
+        history: bool = False,
+    ) -> List[types.Blob]:
         pass
 
     @abstractmethod
-    def put_bytes(self, key: str, *, content: Union[bytes, io.BytesIO],
-                  metadata: Optional[Dict[str, str]] = None) -> types.Blob:
+    def put_bytes(
+        self,
+        key: str,
+        *,
+        content: Union[bytes, io.BytesIO],
+        metadata: Optional[Dict[str, str]] = None,
+    ) -> types.Blob:
         pass
 
     @abstractmethod
-    def put_stream(self, key: str, generator: Generator[bytes, None, None],
-                   metadata: Optional[Dict[str, str]] = None) -> bool:
+    def put_stream(
+        self,
+        key: str,
+        generator: Generator[bytes, None, None],
+        metadata: Optional[Dict[str, str]] = None,
+    ) -> bool:
         pass
 
     @abstractmethod
@@ -219,11 +233,15 @@ class StorageSpec(ABC):
         pass
 
     @abstractmethod
-    def get_stream(self, key: str, buffer_size=256*1024) -> Generator[bytes, None, None]:
+    def get_stream(
+        self, key: str, buffer_size=256 * 1024
+    ) -> Generator[bytes, None, None]:
         pass
 
     @abstractmethod
-    def blob_history(self, key: str, max_results=None, sorted_=True) -> List[types.Blob]:
+    def blob_history(
+        self, key: str, max_results=None, sorted_=True
+    ) -> List[types.Blob]:
         pass
 
     @abstractmethod
@@ -243,13 +261,13 @@ class StorageSpec(ABC):
         pass
 
     @abstractmethod
-    def upload_signed(self, key, minutes=15, bucket=None,
-                      content_type="application/octed-stream"):
+    def upload_signed(
+        self, key, minutes=15, bucket=None, content_type="application/octed-stream"
+    ):
         pass
 
 
 class LogsSpec(ABC):
-
     providerid: str
     keyvar: str
     filters: Dict[str, str]
@@ -258,6 +276,50 @@ class LogsSpec(ABC):
         self.keyvar = keyvar
 
     @abstractmethod
-    def list_logs(self, filter_: str, order_by: str, max_results=None) \
-        -> List[types.LogEntry]:
+    def list_logs(
+        self, filter_: str, order_by: str, max_results=None
+    ) -> List[types.LogEntry]:
+        pass
+
+
+class InstanceGroupManagerSpec(ABC):
+    providerid: str
+    keyvar: str
+    filepath: Optional[str] = None
+
+    def create(self, req: types.InstanceGroupManagerRequest):
+        pass
+
+    def resize(self, *, name: str, projectid: str, size: int, zone: str):
+        pass
+
+    def get(
+        self, *, name: str, projectid: str, zone: str
+    ) -> types.InstanceGroupManagerItem:
+        pass
+
+    def list(
+        self, *, projectid: str, zone: str
+    ) -> List[types.InstanceGroupManagerItem]:
+        pass
+
+    def list_instances(
+        self, *, name: str, projectid: str, zone: str
+    ) -> List[types.ManagedInstance]:
+        pass
+
+    def delete(self, *, name: str, projectid: str, zone: str):
+        pass
+
+    def recreate_instances(
+        self, *, name: str, projectid, zone: str, instances: List[str]
+    ):
+        pass
+
+    def delete_instances(
+        self, *, name: str, projectid: str, zone: str, instances: List[str]
+    ):
+        pass
+
+    def list_templates(self, *, projectid: str) -> List[types.InstanceTemplate]:
         pass

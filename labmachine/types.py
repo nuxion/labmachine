@@ -378,3 +378,10 @@ class ManagedInstance(BaseModel):
     status: str
     template: str
     current_action: str
+
+
+class InstanceTemplate(BaseModel):
+    name: str
+    template_uri: str
+    machine_type: str
+    spot_instance: bool
