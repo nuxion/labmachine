@@ -88,6 +88,7 @@ class AttachStorage(BaseModel):
     :param as_boot: If true disk will be attached as boot disk.
     It could depends on the provider.
     """
+
     disk_name: str
     mode: str
     device_name: Optional[str] = None
@@ -202,6 +203,7 @@ class VMRequest(BaseModel):
     for any edge case.
 
     """
+
     name: str
     instance_type: str  # size
     location: str
@@ -321,3 +323,65 @@ class LogEntry(BaseModel):
 
     def __gt__(self, other):
         return self.timestamp.timestamp() > other.timestamp.timestamp()
+
+
+class InstanceGroupManagerRequest(BaseModel):
+    name: str
+    base_instance_name: str
+    target_size: int
+    projectid: str
+    zone: str
+    template_uri: str
+    description: Optional[str] = None
+
+
+class InstanceGroupStatus(BaseModel):
+    is_stable: bool
+    abandoning: int
+    creating: int
+    deleting: int
+    none: int
+    recreating: int
+    refreshing: int
+    restarting: int
+    resuming: int
+    starting: int
+    stopping: int
+    suspending: int
+    verifying: int
+
+
+class InstanceGroupManagerItem(BaseModel):
+    name: str
+    base_instance_name: str
+    target_size: int
+    projectid: str
+    zone: str
+    template_uri: str
+    status: InstanceGroupStatus
+    description: Optional[str] = None
+
+
+class InstanceGroupResizeRequest(BaseModel):
+    instance_group_name: str
+    projectid: str
+    size: int
+    zone: str
+
+
+class ManagedInstance(BaseModel):
+    id: str
+    instance_group_name: str
+    projectid: str
+    zone: str
+    instance: str
+    status: str
+    template: str
+    current_action: str
+
+
+class InstanceTemplate(BaseModel):
+    name: str
+    template_uri: str
+    machine_type: str
+    spot_instance: bool
